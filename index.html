@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1318">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DATAsaster">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>DATAsaster - Philippine Disaster Monitoring</title>
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-pane="map">
+<header class="top">
+  <div class="brand"><span id="logo"></span><div><b>DATAsaster</b><small>Philippine disaster monitoring</small></div></div>
+  <div class="sp"></div>
+  <span class="net" id="net" hidden>Offline</span>
+  <div class="clock"><small>Manila time</small><b id="clk">--:--:--</b></div>
+  <button class="btn" id="btnSet"></button>
+  <button class="btn primary" id="btnRep"></button>
+</header>
+
+<div id="viewDash">
+<nav class="bar">
+  <div class="segs" id="segs"></div>
+  <div class="sp"></div>
+  <div class="date">
+    <label for="range">Date</label>
+    <select id="range">
+      <option value="today">Today</option>
+      <option value="3d">Past 3 days</option>
+      <option value="7d" selected>Past 7 days</option>
+      <option value="30d">Past 30 days</option>
+      <option value="all">All time</option>
+      <option value="day">Pick a day</option>
+    </select>
+    <input type="date" id="day" hidden>
+  </div>
+</nav>
+
+<main class="work">
+  <section class="feed">
+    <div class="fh">
+      <div class="search"><span id="icS"></span><input type="text" id="q" placeholder="Search place, title or source"></div>
+      <div class="fr">
+        <select id="statusSel"><option value="active">Active</option><option value="resolved">Resolved</option><option value="all">All statuses</option></select>
+        <select id="sevSel"><option value="-1">Any severity</option><option value="0">Low</option><option value="1">Moderate</option><option value="2">High</option><option value="3">Critical</option></select>
+        <select id="sortSel"><option value="latest">Latest</option><option value="severity">Severity</option></select>
+      </div>
+      <div class="fsum" id="fsum"></div>
+      <div class="fnote" id="fnote"></div>
+    </div>
+    <div class="rows" id="rows"></div>
+  </section>
+  <section class="mapwrap">
+    <div id="map"></div>
+    <div class="mctl">
+      <div class="tg2" id="baseSw"></div>
+      <button class="btn" id="btnLayers"></button>
+      <div class="lpanel" id="lpanel" hidden></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="pickbar">Tap the map to place the report <button id="pickCancel">Cancel</button></div>
+    <div id="tilewarn">Map tiles are not loading (offline or blocked). Markers, lists and details still work.</div>
+  </section>
+</main>
+
+<section class="sec" id="newsSec">
+  <h2>Latest headlines <span class="sp"></span><select id="newsSrc"></select><button class="btn sm" id="newsRef"></button></h2>
+  <div class="list" id="newsList"></div>
+  <div class="m" style="margin-top:8px" id="newsMeta"></div>
+</section>
+
+<section class="sec" id="contactSec">
+  <h2>Emergency contacts</h2>
+  <table><thead><tr><th style="width:26%">Agency</th><th style="width:30%">Call</th><th>Use for</th></tr></thead><tbody id="contacts"></tbody></table>
+</section>
+
+<footer class="foot">DATAsaster is not an official government site. Sample and community records are unconfirmed. For real warnings use PAGASA, PHIVOLCS, NDRRMC and BFP.</footer>
+<nav class="tabbar" id="tabbar"></nav>
+</div>
+<div id="viewSettings" hidden></div>
+
+<div class="bg" id="detailBg"><div class="modal wide" id="detailBox"></div></div>
+
+<div class="bg" id="reportBg">
+  <div class="modal fl">
+    <button class="mx" id="rX" aria-label="Close"></button>
+    <h2>Report an incident</h2>
+    <div class="hint">Reports are saved on this device and shown as unverified.</div>
+    <label class="l">Type</label><select id="rType"></select>
+    <label class="l">Severity</label><select id="rSev"></select>
+    <div class="hint" id="rSevHelp"></div>
+    <label class="l">Headline</label><input type="text" id="rTitle" placeholder="e.g. Knee-deep flood on Rizal Avenue">
+    <div id="secFlood">
+      <label class="l">Water depth</label>
+      <div class="row2"><input type="number" id="rDepth" min="0" step="any"><select id="rUnit"><option value="cm">cm</option><option value="m">m</option></select></div>
+      <label class="l">Hours flooded</label><input type="number" id="rFDur" min="0" step="0.5">
+      <label class="l">Road passability</label>
+      <select id="rRoad"><option>Passable to all vehicles</option><option>Passable to high vehicles only</option><option>Not passable</option></select>
+      <label class="l">Water condition</label>
+      <select id="rWater"><option>Steady</option><option>Rising slowly</option><option>Rising fast</option><option>Receding</option></select>
+    </div>
+    <div id="secFire">
+      <label class="l">Burning for (hours)</label><input type="number" id="rBurn" min="0" step="0.5">
+      <label class="l">Structures affected</label><input type="text" id="rStruct">
+    </div>
+    <div id="secQuake"><label class="l">Effects observed</label><div id="efxBox"></div><div class="hint">Magnitude and depth are official data and cannot be entered.</div></div>
+    <div id="secVolc">
+      <label class="l">Ashfall</label><select id="rAsh"><option>No ashfall</option><option>Light ashfall</option><option>Heavy ashfall</option></select>
+      <label class="l">Observations</label><div id="obsBox"></div>
+    </div>
+    <label class="l">Evacuation</label>
+    <select id="rEvac"><option value="">Not needed</option><option>Evacuation needed</option><option>Evacuation ongoing</option></select>
+    <label class="l">Photo</label><input type="file" id="rPhoto" accept="image/*"><img id="rPrev" alt="Photo preview">
+    <label class="l">Location</label>
+    <div class="row2"><button class="btn" id="rPick" type="button">Pick on map</button><button class="btn" id="rGps" type="button">Use my location</button></div>
+    <div class="hint" id="rLoc">No location set</div>
+    <label class="l">Place name</label><input type="text" id="rPlace" placeholder="Barangay, city">
+    <label class="l">Details</label><textarea id="rDesc"></textarea>
+    <div class="acts" style="justify-content:flex-end"><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rSave">Post report</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="lib/leaflet.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
