@@ -1,0 +1,873 @@
+/* DATAsaster app logic. Content (incidents, contacts, outlets) lives in data.js.
+   Colours and layout live in ../css/style.css. */
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function lsGet(k, d) { try { var v = window.localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function pad2(n) { return n < 10 ? '0' + n : String(n); }
+  function each(a, f) { var i; for (i = 0; i < a.length; i++) { f(a[i], i); } }
+  function ago(ms) {
+    var s = Math.floor((Date.now() - ms) / 1000);
+    if (isNaN(s)) { return ''; }
+    if (s < 90) { return 'just now'; }
+    if (s < 3600) { return Math.floor(s / 60) + ' min ago'; }
+    if (s < 86400) { return Math.floor(s / 3600) + ' h ago'; }
+    return Math.floor(s / 86400) + ' d ago';
+  }
+  function fmtFull(ms) { return new Date(ms).toLocaleString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' PHT'; }
+  function manilaDay(ms) { return new Date(ms + 8 * 3600000).toISOString().substring(0, 10); }
+  function xhr(url, ok, fail, asText) {
+    var x = new XMLHttpRequest();
+    x.open('GET', url, true);
+    x.timeout = 20000;
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) { return; }
+      if (x.status >= 200 && x.status < 300) {
+        if (asText) { ok(x.responseText); return; }
+        try { ok(JSON.parse(x.responseText)); } catch (e) { fail('bad data'); }
+      } else { fail(x.status ? 'error ' + x.status : 'no connection'); }
+    };
+    x.ontimeout = function () { fail('timeout'); };
+    x.send();
+  }
+
+  /* ---------- icons (one set, 16px, 1.75 stroke) ---------- */
+  var IC = {
+    drop: '<path d="M12 3s6 6.3 6 10.3a6 6 0 0 1-12 0C6 9.300 12 3 12 3z"/>',
+    flame: '<path d="M12 22c4 0 7-2.800 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-4 6-4 12 0 4 3 7 7 7z"/>',
+    pulse: '<polyline points="3 12 7 12 10 4 14 20 17 12 21 12"/>',
+    mountain: '<path d="M2 20l7-13 4 7 3-4 6 10z"/>',
+    alert: '<path d="M12 3l9.500 17h-19z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.200"/>',
+    storm: '<path d="M4 8h10a3 3 0 1 0-3-3"/><path d="M2 13h15a3 3 0 1 1-3 3"/><path d="M5 18h6"/>',
+    search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.500" y2="16.500"/>',
+    sliders: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.500"/><circle cx="15" cy="17" r="2.500"/>',
+    layers: '<polygon points="12 3 2 8 12 13 22 8"/><polyline points="2 13 12 18 22 13"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    x: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+    radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="12" x2="18" y2="6"/>',
+    refresh: '<path d="M20 11a8 8 0 1 0-2.300 5.700"/><polyline points="20 4 20 11 13 11"/>',
+    up: '<polyline points="6 15 12 9 18 15"/>',
+    down: '<polyline points="6 9 12 15 18 9"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>',
+    pin: '<path d="M12 21s7-6.200 7-11a7 7 0 0 0-14 0c0 4.800 7 11 7 11z"/><circle cx="12" cy="10" r="2.500"/>',
+    back: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="11 6 5 12 11 18"/>',
+    check: '<polyline points="5 12 10 17 19 7"/>',
+    list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+    news: '<rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/>',
+    phone: '<path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+    nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>'
+  };
+  function icon(n, s) { s = s || 16; return '<svg class="ic" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' + (IC[n] || '') + '</svg>'; }
+
+  /* ---------- constants ---------- */
+  var TYPES = {
+    flood: { label: 'Flooding', ic: 'drop' },
+    fire: { label: 'Fire', ic: 'flame' },
+    quake: { label: 'Earthquake', ic: 'pulse' },
+    volcano: { label: 'Volcanic eruption', ic: 'mountain' }
+  };
+  var TORDER = ['flood', 'fire', 'quake', 'volcano'];
+  var TSHORT = { flood: 'Flooding', fire: 'Fire', quake: 'Earthquake', volcano: 'Volcanic' };
+  var SEV = ['Low', 'Moderate', 'High', 'Critical'];
+  var SEVCOL = ['#34d399', '#fbbf24', '#fb923c', '#ef4444'];
+  var SEVINK = ['#0b1f17', '#2b2105', '#2b1405', '#ffffff'];
+  var RESCOL = '#7f8ea3';
+  var SEVDESC = {
+    flood: ['Ankle-level flooding', 'Knee-level flooding', 'Waist-level flooding', 'Chest-level or higher flooding'],
+    fire: ['Small contained fire', 'Expanding fire', 'Large fire', 'Widespread fire or threat to life'],
+    quake: ['Felt only, no damage', 'Minor damage', 'Significant damage', 'Collapse, injuries or trapped people'],
+    volcano: ['Minor activity', 'Noticeable activity or light ashfall', 'Heavy ashfall or major activity', 'Immediate threat to life']
+  };
+  var REGIONS = { ph: [[4.5, 116], [21.5, 127]], luzon: [[12.3, 119.5], [19.0, 124.5]], visayas: [[9.0, 121.0], [12.5, 126.5]], mindanao: [[5.3, 121.5], [10.0, 127.0]], ncr: [[14.35, 120.9], [14.85, 121.2]] };
+  var REGION_NAMES = { ph: 'Philippines', luzon: 'Luzon', visayas: 'Visayas', mindanao: 'Mindanao', ncr: 'Metro Manila' };
+  var RANGE_NAMES = { today: 'Today', '3d': 'Past 3 days', '7d': 'Past 7 days', '30d': 'Past 30 days', all: 'All time', day: 'Selected day' };
+
+  var RAIN_CLASSES = [[5, '#64748b', '#ffffff', 'Under 5 mm'], [25, '#38bdf8', '#08202e', '5 to 25 mm'], [50, '#facc15', '#2b2105', '25 to 50 mm'], [100, '#fb923c', '#2b1405', '50 to 100 mm'], [200, '#ef4444', '#ffffff', '100 to 200 mm'], [99999, '#a21caf', '#ffffff', 'Over 200 mm']];
+  var RIVER_CLASSES = [[1.5, '#34d399', '#0b1f17', 'Normal, under 1.5x recent flow'], [2.5, '#fbbf24', '#2b2105', 'Elevated, 1.5 to 2.5x'], [4, '#fb923c', '#2b1405', 'High, 2.5 to 4x'], [99999, '#ef4444', '#ffffff', 'Very high, over 4x']];
+  var STORM_CLASSES = [[34, '#38bdf8', 'Tropical depression'], [48, '#34d399', 'Tropical storm'], [64, '#fbbf24', 'Severe tropical storm'], [100, '#fb923c', 'Typhoon'], [9999, '#ef4444', 'Super typhoon']];
+
+  var EFFECTS = ['Felt shaking', 'Objects fell or swayed', 'Cracks in walls or roads', 'Damaged buildings', 'Landslide', 'Injuries or trapped people'];
+  var VOLC_OBS = ['Steam or plume visible', 'Rumbling or explosions heard', 'Sulfur smell', 'Lava or glow seen', 'Roads or crops covered in ash'];
+
+  /* ---------- state ---------- */
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
+  SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  var settings = clone(DEFAULTS);
+  (function () {
+    var s = lsGet('datasaster_settings', null), k, j;
+    if (!s) { return; }
+    for (k in s) {
+      if (!s.hasOwnProperty(k)) { continue; }
+      if ((k === 'cats' || k === 'sources' || k === 'layers') && typeof s[k] === 'object') { for (j in s[k]) { if (s[k].hasOwnProperty(j)) { settings[k][j] = s[k][j]; } } }
+      else { settings[k] = s[k]; }
+    }
+  })();
+  function saveSettings() { lsSet('datasaster_settings', settings); }
+
+  var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []);
+  var newsItems = [], newsState = 'loading', newsLive = 0, quakeState = '';
+  var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '7d', dayVal = '', selId = null, newsF = 'all';
+  var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImg = '';
+  var legendOpen = true, panelOpen = false;
+  var lstat = {}, lgroups = {}, lupd = {};
+  var rv = { loaded: false, loading: false, failed: false, host: '', radar: [], sat: [] }, rvLayers = [], rvCloud = null, rvTimer = null, rvIdx = 0, rvLabel = '';
+  var fcData = { rain: null, river: null }, eonet = null;
+
+  function buildDemo() {
+    var now = Date.now();
+    demo = [];
+    each(SEED, function (r, i) {
+      var o = {}, k;
+      for (k in r) { if (r.hasOwnProperty(k)) { o[k] = r[k]; } }
+      o.id = 'd' + i; o.demo = true; o.time = now - r.h * 3600000; o.prov = '';
+      if (r.resolved) { o.resAt = now - r.resH * 3600000; }
+      demo.push(o);
+    });
+  }
+
+  /* ---------- filtering ---------- */
+  function pool() {
+    var a = [];
+    if (settings.demo) { a = a.concat(demo); }
+    if (settings.liveQuakes) { a = a.concat(liveQuakes); }
+    a = a.concat(userItems);
+    return a.filter(function (r) {
+      if (!settings.cats[r.type]) { return false; }
+      if (r.src && settings.sources[r.src] === false) { return false; }
+      if (r.trust === 'unverified' && !settings.showUnverified) { return false; }
+      return true;
+    });
+  }
+  function inRange(r) {
+    var now = Date.now();
+    if (range === 'all') { return true; }
+    if (range === 'today') { return manilaDay(r.time) === manilaDay(now); }
+    if (range === 'day') { return manilaDay(r.time) === (dayVal || manilaDay(now)); }
+    if (range === '3d') { return r.time >= now - 3 * 86400000; }
+    if (range === '30d') { return r.time >= now - 30 * 86400000; }
+    return r.time >= now - 7 * 86400000;
+  }
+  function trustOK(r) {
+    if (trF === 'ov') { return r.trust !== 'unverified'; }
+    if (trF === 'un') { return r.trust === 'unverified'; }
+    return true;
+  }
+  function match(r, o) {
+    var q;
+    o = o || {};
+    if (!o.noType && tf !== 'all' && r.type !== tf) { return false; }
+    if (!o.noTrust && !trustOK(r)) { return false; }
+    if (!o.noStatus && statusF !== 'all' && (statusF === 'resolved') !== !!r.resolved) { return false; }
+    if (!o.noDate && !inRange(r)) { return false; }
+    if (sevF >= 0 && r.sev !== sevF) { return false; }
+    if (query) {
+      q = (r.title + ' ' + r.place + ' ' + r.srcLabel + ' ' + r.desc).toLowerCase();
+      if (q.indexOf(query) < 0) { return false; }
+    }
+    return true;
+  }
+  function filtered() {
+    var out = pool().filter(function (r) { return match(r); });
+    out.sort(function (a, b) { if (sortBy === 'severity' && b.sev !== a.sev) { return b.sev - a.sev; } return b.time - a.time; });
+    return out;
+  }
+  function byId(id) { var a = pool(), i; for (i = 0; i < a.length; i++) { if (a[i].id === id) { return a[i]; } } return null; }
+
+  /* ---------- feed ---------- */
+  function renderBar() {
+    var h = '';
+    function seg(val, label, on) { return '<button class="seg' + (on ? ' on' : '') + '" data-tf="' + val + '">' + label + '</button>'; }
+    h += seg('all', 'General', tf === 'all');
+    each(TORDER, function (t) { if (settings.cats[t]) { h += seg(t, TSHORT[t], tf === t); } });
+    $('segs').innerHTML = h;
+  }
+  function trustLine(r) {
+    var s = esc(r.srcLabel) + (r.demo ? ' (sample)' : '');
+    if (r.trust === 'unverified') { s += ' \u00b7 <span class="warn">Unverified</span>'; }
+    return s;
+  }
+  function samplePhoto() {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#2a3340"/><text x="60" y="64" text-anchor="middle" fill="#8f99a8" font-size="12" font-family="Arial">Sample photo</text></svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+  function statusLine(r, t) {
+    return '<div class="m"><span class="dot" style="--c:' + (r.resolved ? RESCOL : SEVCOL[r.sev]) + '"></span>' + (r.resolved ? 'Resolved' : SEV[r.sev]) + ' \u00b7 ' + t.label + ' \u00b7 ' + ago(r.time) + '</div>';
+  }
+  function renderFeed() {
+    var items = filtered(), h = '', hidden, note;
+    each(items, function (r) {
+      var t = TYPES[r.type];
+      h += '<div class="row' + (r.id === selId ? ' sel' : '') + (r.resolved ? ' res' : '') + '" data-id="' + r.id + '"><div>';
+      h += statusLine(r, t);
+      h += '<h3>' + esc(r.title) + '</h3>';
+      h += '<div class="m">' + esc(r.place) + '</div><div class="m">' + trustLine(r) + ' \u00b7 <button class="link" data-open="' + r.id + '">Details</button></div></div>';
+      if (settings.showPhotos) { h += '<img class="thumb" alt="" src="' + (r.img || samplePhoto()) + '">'; }
+      h += '</div>';
+    });
+    if (!items.length) { h = '<div class="empty">No records match these filters.<br>Widen the date range or clear the filters.</div>'; }
+    $('rows').innerHTML = h;
+    var ov = 0, un = 0;
+    each(pool(), function (r) { if (match(r, { noTrust: true })) { if (r.trust === 'unverified') { un++; } else { ov++; } } });
+    $('fsum').innerHTML = '<span><b>' + items.length + '</b> records</span><span class="m">\u00b7</span><button data-tr="ov" class="' + (trF === 'ov' ? 'on' : '') + '"><b>' + ov + '</b> official / verified</button><span class="m">\u00b7</span><button data-tr="un" class="' + (trF === 'un' ? 'on' : '') + '"><b>' + un + '</b> unverified</button>';
+    hidden = pool().filter(function (r) { return match(r, { noDate: true }); }).length - items.length;
+    note = RANGE_NAMES[range] + (range === 'day' ? ' (' + (dayVal || manilaDay(Date.now())) + ')' : '') + ' \u00b7 ' + items.length + ' shown';
+    if (hidden > 0 && range !== 'all') { note += ' \u00b7 ' + hidden + ' older hidden <button data-showall="1">Show all time</button>'; }
+    var resHidden = statusF === 'active' ? pool().filter(function (r) { return r.resolved && match(r, { noStatus: true }); }).length : 0;
+    if (resHidden > 0) { note += ' \u00b7 ' + resHidden + ' resolved hidden <button data-showres="1">Show</button>'; }
+    if (quakeState === 'unavailable') { note += ' \u00b7 Live earthquakes unavailable'; }
+    $('fnote').innerHTML = note;
+  }
+
+  /* ---------- map ---------- */
+  function setTiles() {
+    if (!map) { return; }
+    if (tiles) { map.removeLayer(tiles); }
+    var base = 'https://server.arcgisonline.com/ArcGIS/rest/services/', p = 'World_Street_Map', te = 0;
+    if (settings.basemap === 'dark') { p = 'Canvas/World_Dark_Gray_Base'; }
+    if (settings.basemap === 'light') { p = 'Canvas/World_Light_Gray_Base'; }
+    tiles = L.tileLayer(base + p + '/MapServer/tile/{z}/{y}/{x}', { maxZoom: 18, zIndex: 1, attribution: 'Tiles &copy; Esri' });
+    tiles.on('tileerror', function () { te++; if (te > 4) { $('tilewarn').style.display = 'block'; } });
+    tiles.on('tileload', function () { te = 0; $('tilewarn').style.display = 'none'; });
+    tiles.addTo(map);
+  }
+  function markIcon(r) {
+    var t = TYPES[r.type];
+    return L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="mk' + (r.id === selId ? ' sel' : '') + (r.resolved ? ' res' : '') + '" style="--c:' + (r.resolved ? RESCOL : SEVCOL[r.sev]) + ';--ink:' + (r.resolved ? '#ffffff' : SEVINK[r.sev]) + '">' + icon(r.resolved ? 'check' : t.ic, 14) + '</div>' });
+  }
+  function drawMarkers() {
+    if (!map) { return; }
+    mlayer.clearLayers();
+    markers = {};
+    each(filtered(), function (r) {
+      var m = L.marker([r.lat, r.lng], { icon: markIcon(r), title: r.title });
+      m.on('click', function () { select(r.id, false); openDetail(r.id); });
+      m.addTo(mlayer);
+      markers[r.id] = m;
+    });
+  }
+  function fitRegion() { if (map) { map.fitBounds(REGIONS[settings.region] || REGIONS.ph, { padding: [10, 10] }); } }
+  function initMap() {
+    if (typeof L === 'undefined') { $('map').innerHTML = '<div class="empty">The map library could not start in this browser.</div>'; return; }
+    map = L.map('map', { zoomControl: false, minZoom: 5 });
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+    map.createPane('fc'); map.getPane('fc').style.zIndex = 450;
+    mlayer = L.layerGroup().addTo(map);
+    setTiles();
+    fitRegion();
+    map.on('click', function (e) { if (picking) { setPending(e.latlng.lat, e.latlng.lng); endPick(); openReport(true); } });
+    setTimeout(function () { map.invalidateSize(); fitRegion(); }, 300);
+  }
+  function select(id, fly) {
+    var r = byId(id), el;
+    selId = id;
+    drawMarkers(); renderFeed();
+    el = document.querySelector('.row.sel');
+    if (el && el.scrollIntoView) { el.scrollIntoView({ block: 'nearest' }); }
+    if (fly && window.innerWidth <= 900) { setPane('map'); }
+    if (fly && map && r) { map.setView([r.lat, r.lng], Math.max(map.getZoom(), 9)); }
+  }
+  function renderBase() {
+    var h = '';
+    each([['dark', 'Dark'], ['street', 'Street'], ['light', 'Light']], function (b) { h += '<button data-base="' + b[0] + '" class="' + (settings.basemap === b[0] ? 'on' : '') + '">' + b[1] + '</button>'; });
+    $('baseSw').innerHTML = h;
+  }
+
+  /* ---------- live layers ---------- */
+  function classOf(list, v) { var i; for (i = 0; i < list.length; i++) { if (v < list[i][0]) { return list[i]; } } return list[list.length - 1]; }
+  function group(id) { if (!lgroups[id]) { lgroups[id] = L.layerGroup(); } return lgroups[id]; }
+  function setStat(id, s) { lstat[id] = s; if (panelOpen) { renderPanel(); } }
+  function stamp() { var d = new Date(); return 'Updated ' + d.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' }); }
+
+  function loadRV(cb) {
+    if (rv.loaded) { cb(); return; }
+    if (rv.loading) { return; }
+    rv.loading = true;
+    xhr('https://api.rainviewer.com/public/weather-maps.json', function (d) {
+      rv.loaded = true; rv.loading = false; rv.failed = false;
+      rv.host = d.host; rv.radar = (d.radar && d.radar.past) ? d.radar.past.slice(-6) : []; rv.sat = (d.satellite && d.satellite.infrared) ? d.satellite.infrared : [];
+      cb();
+    }, function (e) { rv.loading = false; rv.failed = true; setStat('radar', 'Unavailable'); setStat('cloud', 'Unavailable'); });
+  }
+  function stopRadar() {
+    if (rvTimer) { clearInterval(rvTimer); rvTimer = null; }
+    each(rvLayers, function (l) { if (map) { map.removeLayer(l); } });
+    rvLayers = []; rvLabel = ''; renderLegend();
+  }
+  function radarFrame(i) {
+    var f = rv.radar[i];
+    each(rvLayers, function (l, k) { l.setOpacity(k === i ? 0.7 : 0); });
+    rvLabel = 'Frame ' + new Date(f.time * 1000).toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' }) + ' PHT';
+    renderLegend();
+  }
+  function startRadar() {
+    if (!map) { return; }
+    stopRadar();
+    if (!settings.layers.radar) { return; }
+    setStat('radar', 'Loading');
+    loadRV(function () {
+      if (!settings.layers.radar) { return; }
+      if (!rv.radar.length) { setStat('radar', 'No data'); return; }
+      each(rv.radar, function (f) {
+        var l = L.tileLayer(rv.host + f.path + '/256/{z}/{x}/{y}/6/1_1.png', { opacity: 0, zIndex: 5, maxNativeZoom: 7, maxZoom: 18 });
+        l.addTo(map); rvLayers.push(l);
+      });
+      rvIdx = rvLayers.length - 1; radarFrame(rvIdx);
+      rvTimer = setInterval(function () { rvIdx = (rvIdx + 1) % rvLayers.length; radarFrame(rvIdx); }, 800);
+      setStat('radar', stamp());
+    });
+  }
+  function startCloud() {
+    if (!map) { return; }
+    if (rvCloud) { map.removeLayer(rvCloud); rvCloud = null; }
+    if (!settings.layers.cloud) { return; }
+    setStat('cloud', 'Loading');
+    loadRV(function () {
+      if (!settings.layers.cloud) { return; }
+      if (!rv.sat.length) { setStat('cloud', 'No data'); return; }
+      rvCloud = L.tileLayer(rv.host + rv.sat[rv.sat.length - 1].path + '/256/{z}/{x}/{y}/0/0_0.png', { opacity: 0.55, zIndex: 4, maxNativeZoom: 7, maxZoom: 18 }).addTo(map);
+      setStat('cloud', stamp());
+    });
+  }
+  function pointsQS() {
+    var la = [], lo = [];
+    each(POINTS, function (p) { la.push(p[1]); lo.push(p[2]); });
+    return 'latitude=' + la.join(',') + '&longitude=' + lo.join(',');
+  }
+  function fcIcon(txt, c, ink) { return L.divIcon({ className: '', iconSize: [34, 22], iconAnchor: [17, 11], html: '<div class="fc" style="--c:' + c + ';--ink:' + ink + '">' + txt + '</div>' }); }
+  function drawRain() {
+    var g = group('rain'); g.clearLayers();
+    if (!fcData.rain || !map) { return; }
+    each(fcData.rain, function (p) {
+      var c = classOf(RAIN_CLASSES, p.v), m = L.marker([p.lat, p.lng], { icon: fcIcon(Math.round(p.v), c[1], c[2]), pane: 'fc' });
+      m.bindPopup('<b>' + esc(p.name) + '</b><br>' + Math.round(p.v) + ' mm expected in the next 24 hours<br><small>Model forecast (Open-Meteo). Not an official PAGASA forecast.</small>');
+      g.addLayer(m);
+    });
+    if (settings.layers.rain && !map.hasLayer(g)) { g.addTo(map); }
+  }
+  function drawRiver() {
+    var g = group('river'); g.clearLayers();
+    if (!fcData.river || !map) { return; }
+    each(fcData.river, function (p) {
+      var c = classOf(RIVER_CLASSES, p.v), m = L.marker([p.lat, p.lng], { icon: fcIcon(p.v.toFixed(1) + 'x', c[1], c[2]), pane: 'fc' });
+      m.bindPopup('<b>' + esc(p.name) + '</b><br>Peak river flow in 7 days: ' + p.v.toFixed(1) + 'x the last 30 days<br><small>Model estimate (Open-Meteo GloFAS). Not an official flood warning.</small>');
+      g.addLayer(m);
+    });
+    if (settings.layers.river && !map.hasLayer(g)) { g.addTo(map); }
+  }
+  function loadRain() {
+    if (!settings.layers.rain) { return; }
+    setStat('rain', 'Loading');
+    xhr('https://api.open-meteo.com/v1/forecast?' + pointsQS() + '&hourly=precipitation&forecast_hours=24&timezone=Asia%2FManila', function (d) {
+      var arr = Object.prototype.toString.call(d) === '[object Array]' ? d : [d], out = [];
+      each(arr, function (o, i) {
+        var s = 0, p = o.hourly ? o.hourly.precipitation : null;
+        if (!p || !POINTS[i]) { return; }
+        each(p, function (v) { s += v || 0; });
+        out.push({ name: POINTS[i][0], lat: POINTS[i][1], lng: POINTS[i][2], v: s });
+      });
+      fcData.rain = out; drawRain(); setStat('rain', stamp());
+    }, function () { setStat('rain', 'Unavailable'); });
+  }
+  function loadRiver() {
+    if (!settings.layers.river) { return; }
+    setStat('river', 'Loading');
+    xhr('https://flood-api.open-meteo.com/v1/flood?' + pointsQS() + '&daily=river_discharge&past_days=30&forecast_days=7', function (d) {
+      var arr = Object.prototype.toString.call(d) === '[object Array]' ? d : [d], out = [];
+      each(arr, function (o, i) {
+        var a = o.daily ? o.daily.river_discharge : null, base = 0, n = 0, peak = 0, k;
+        if (!a || !POINTS[i] || a.length < 14) { return; }
+        for (k = 0; k < a.length - 7; k++) { if (a[k] != null) { base += a[k]; n++; } }
+        for (k = a.length - 7; k < a.length; k++) { if (a[k] != null && a[k] > peak) { peak = a[k]; } }
+        if (!n || base <= 0) { return; }
+        out.push({ name: POINTS[i][0], lat: POINTS[i][1], lng: POINTS[i][2], v: peak / (base / n) });
+      });
+      fcData.river = out; drawRiver(); setStat('river', out.length ? stamp() : 'No data');
+    }, function () { setStat('river', 'Unavailable'); });
+  }
+  function drawEonet() {
+    var gf = group('fire'), gs = group('storm');
+    gf.clearLayers(); gs.clearLayers();
+    if (!eonet || !map) { return; }
+    var nf = 0, ns = 0;
+    each(eonet, function (e) {
+      var cat = e.categories && e.categories[0] ? e.categories[0].id : '', g = e.geometry || [], last = g[g.length - 1], c, i, pts = [], cls, m, kt;
+      if (!last || !last.coordinates || typeof last.coordinates[0] !== 'number') { return; }
+      c = last.coordinates;
+      if (cat === 'wildfires' && c[1] >= 4 && c[1] <= 22 && c[0] >= 116 && c[0] <= 128) {
+        m = L.marker([c[1], c[0]], { pane: 'fc', icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12], html: '<div class="ev" style="--c:#f97316">' + icon('flame', 13) + '</div>' }) });
+        m.bindPopup('<b>' + esc(e.title) + '</b><br>Satellite-detected fire event<br><small>NASA EONET, ' + ago(new Date(last.date).getTime()) + '</small>');
+        gf.addLayer(m); nf++;
+      }
+      if (cat === 'severeStorms') {
+        for (i = 0; i < g.length; i++) { if (g[i].coordinates && typeof g[i].coordinates[0] === 'number') { pts.push([g[i].coordinates[1], g[i].coordinates[0]]); } }
+        kt = (last.magnitudeUnit === 'kts' && last.magnitudeValue != null) ? last.magnitudeValue : null;
+        cls = kt == null ? [0, '#94a3b8', 'Unclassified'] : classOf(STORM_CLASSES, kt);
+        if (pts.length > 1) { gs.addLayer(L.polyline(pts, { color: cls[1], weight: 2, dashArray: '4 6', opacity: 0.9, pane: 'fc' })); }
+        m = L.marker([c[1], c[0]], { pane: 'fc', icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="ev" style="--c:' + cls[1] + ';width:28px;height:28px">' + icon('storm', 15) + '</div>' }) });
+        m.bindPopup('<b>' + esc(e.title) + '</b><br>' + cls[2] + (kt != null ? ', ' + kt + ' kt winds' : '') + '<br><small>NASA EONET. Track dashed. Not an official PAGASA bulletin.</small>');
+        gs.addLayer(m); ns++;
+      }
+    });
+    if (settings.layers.fire && !map.hasLayer(gf)) { gf.addTo(map); }
+    if (settings.layers.storm && !map.hasLayer(gs)) { gs.addTo(map); }
+    if (settings.layers.fire) { setStat('fire', nf + (nf === 1 ? ' event' : ' events') + ', ' + stamp().replace('Updated ', '')); }
+    if (settings.layers.storm) { setStat('storm', ns + (ns === 1 ? ' system' : ' systems') + ', ' + stamp().replace('Updated ', '')); }
+  }
+  function loadEonet() {
+    if (!settings.layers.fire && !settings.layers.storm) { return; }
+    if (settings.layers.fire) { setStat('fire', 'Loading'); }
+    if (settings.layers.storm) { setStat('storm', 'Loading'); }
+    xhr('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=20&bbox=105,32,150,-5', function (d) { eonet = d.events || []; drawEonet(); }, function () { setStat('fire', 'Unavailable'); setStat('storm', 'Unavailable'); });
+  }
+  function applyLayers() {
+    var id;
+    if (!map) { return; }
+    startRadar(); startCloud();
+    each(['rain', 'river', 'fire', 'storm'], function (k) {
+      var g = group(k);
+      if (settings.layers[k]) {
+        if (!map.hasLayer(g)) { g.addTo(map); }
+        if (k === 'rain' && !fcData.rain) { loadRain(); }
+        if (k === 'river' && !fcData.river) { loadRiver(); }
+        if ((k === 'fire' || k === 'storm') && !eonet) { loadEonet(); }
+        if ((k === 'fire' || k === 'storm') && eonet) { drawEonet(); }
+      } else if (map.hasLayer(g)) { map.removeLayer(g); lstat[k] = ''; }
+    });
+    renderLegend();
+    if (panelOpen) { renderPanel(); }
+  }
+  function refreshLayers() { fcData.rain = null; fcData.river = null; eonet = null; rv.loaded = false; applyLayers(); }
+  function renderPanel() {
+    var h = '';
+    each(LAYERS, function (l) {
+      h += '<div class="lrow"><div><b>' + l[1] + '</b><small>' + (settings.layers[l[0]] ? (lstat[l[0]] || '') + (lstat[l[0]] ? ' \u00b7 ' : '') : '') + l[2] + '</small></div><button class="sw' + (settings.layers[l[0]] ? ' on' : '') + '" data-layer="' + l[0] + '" aria-label="' + l[1] + '"></button></div>';
+    });
+    h += '<div class="lfoot"><span class="m">Live and model data</span><button class="btn sm" data-layers-refresh="1">' + icon('refresh', 13) + ' Refresh</button></div>';
+    $('lpanel').innerHTML = h;
+  }
+  function lgSec(title, rows) {
+    var h = '<h4>' + title + '</h4>';
+    each(rows, function (r) { h += '<div class="lg-r"><span class="sq" style="--c:' + r[0] + '"></span>' + r[1] + '</div>'; });
+    return h;
+  }
+  function renderLegend() {
+    var h = '<button class="lg-h" data-legend="1">Legend ' + icon(legendOpen ? 'down' : 'up', 14) + '</button>', rows;
+    if (!legendOpen) { $('legend').innerHTML = h; return; }
+    h += '<div class="lg-b">';
+    h += lgSec('Incident severity', [[SEVCOL[0], 'Low'], [SEVCOL[1], 'Moderate'], [SEVCOL[2], 'High'], [SEVCOL[3], 'Critical']].concat(statusF !== 'active' ? [[RESCOL, 'Resolved']] : []));
+    h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano.</div>';
+    if (settings.layers.radar) { h += lgSec('Rain radar', [['#4ade80', 'Light rain'], ['#facc15', 'Moderate'], ['#fb923c', 'Heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
+    if (settings.layers.cloud) { h += lgSec('Cloud cover', [['#f3f4f6', 'Cold, high cloud tops'], ['#6b7280', 'Warmer, thinner cloud']]); }
+    if (settings.layers.rain) { rows = []; each(RAIN_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('Rain forecast, next 24 h', rows); }
+    if (settings.layers.river) { rows = []; each(RIVER_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('River flood outlook', rows); }
+    if (settings.layers.fire) { h += lgSec('Fire hotspots', [['#f97316', 'Satellite-detected fire']]); }
+    if (settings.layers.storm) { rows = []; each(STORM_CLASSES, function (c) { rows.push([c[1], c[2]]); }); rows.push(['#94a3b8', 'Unclassified']); h += lgSec('Storms and typhoons', rows) + '<div class="m">Dashed line shows past track.</div>'; }
+    $('legend').innerHTML = h + '</div>';
+  }
+
+  /* ---------- detail ---------- */
+  function noteFor(r) {
+    if (r.live) { return 'Instrument data from the USGS catalogue. PHIVOLCS publishes the official Philippine bulletin, which may differ slightly.'; }
+    if (r.trust === 'official') { return 'Sample record modelled on an agency bulletin. For real warnings, use the agency website.'; }
+    if (r.trust === 'news') { return 'Sample record modelled on a news report. Real headlines are listed under Latest headlines.'; }
+    if (r.trust === 'verified') { return 'Sample of a report checked against a responder or barangay update.'; }
+    return 'Not reviewed by any agency or moderator. Treat the details and severity as unconfirmed.';
+  }
+  function kv(rows) { var h = '<table class="kv">'; each(rows, function (o) { h += '<tr><td>' + esc(o[0]) + '</td><td>' + esc(o[1]) + '</td></tr>'; }); return h + '</table>'; }
+  function openDetail(id) {
+    var r = byId(id), t, h, rel;
+    if (!r) { return; }
+    t = TYPES[r.type];
+    h = '<button class="mx" data-close="detail" aria-label="Close">' + icon('x') + '</button>';
+    h += statusLine(r, t);
+    h += '<h2>' + esc(r.title) + '</h2><div class="m">' + trustLine(r) + '</div>';
+    if (settings.showPhotos && r.img) { h += '<img class="hero" alt="" src="' + r.img + '">'; }
+    h += '<p>' + esc(r.desc) + '</p>';
+    h += '<h3>Record</h3>' + kv([['Location', r.place], ['Date and time', fmtFull(r.time)], ['Coordinates', r.lat.toFixed(4) + ', ' + r.lng.toFixed(4)], ['Severity', SEV[r.sev] + ': ' + SEVDESC[r.type][r.sev]], ['Status', r.resolved ? 'Resolved' + (r.resAt ? ' on ' + fmtFull(r.resAt) : '') : 'Active']].concat(r.resolved && r.resNote ? [['Resolution', r.resNote]] : []));
+    if (r.lines) { h += '<h3>' + esc(r.obsTitle) + '</h3>' + kv(r.lines); }
+    else if (r.obs && r.obs.length) { h += '<h3>' + esc(r.obsTitle || 'Observations') + '</h3>' + kv(r.obs); }
+    h += '<p class="m" style="margin-top:16px">' + noteFor(r) + '</p>';
+    h += '<div class="acts"><button class="btn primary" data-fly="' + r.id + '">Show on map</button>';
+    h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">' + icon('nav', 14) + ' Directions</a>';
+    if (r.link) { h += '<a class="btn" target="_blank" rel="noopener" href="' + esc(r.link) + '" style="text-decoration:none;color:inherit">Source page</a>'; }
+    if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button><button class="btn danger" data-del="' + r.id + '">Delete my report</button>'; }
+    h += '</div>';
+    rel = pool().filter(function (x) { return x.id !== r.id && x.type === r.type; }).sort(function (a, b) { return Math.abs(a.lat - r.lat) + Math.abs(a.lng - r.lng) - Math.abs(b.lat - r.lat) - Math.abs(b.lng - r.lng); }).slice(0, 3);
+    if (rel.length) { h += '<h3>Nearby of the same type</h3>'; each(rel, function (x) { h += '<button class="rel" data-open="' + x.id + '"><span><span class="dot" style="--c:' + SEVCOL[x.sev] + '"></span>' + esc(x.title) + '</span><span class="m">' + ago(x.time) + '</span></button>'; }); }
+    $('detailBox').innerHTML = h;
+    $('detailBg').className = 'bg show';
+    $('detailBg').scrollTop = 0;
+  }
+
+  /* ---------- news ---------- */
+  function cleanTitle(t) { return String(t || '').replace(/\s+-\s+[^-]{2,40}$/, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'); }
+  function fetchSite(key, cb) {
+    var rss = 'https://news.google.com/rss/search?q=' + encodeURIComponent('site:' + SRC[key].site + ' (flood OR typhoon OR earthquake OR fire OR volcano OR bagyo OR lindol OR sunog) when:7d') + '&hl=en-PH&gl=PH&ceid=PH:en';
+    function viaProxy() {
+      xhr('https://api.allorigins.win/raw?url=' + encodeURIComponent(rss), function (txt) {
+        var out = [], doc, items;
+        try {
+          doc = new DOMParser().parseFromString(txt, 'text/xml'); items = doc.getElementsByTagName('item');
+          each(items, function (it) {
+            var tt = it.getElementsByTagName('title')[0], ll = it.getElementsByTagName('link')[0], pp = it.getElementsByTagName('pubDate')[0], t;
+            if (!tt || !ll) { return; }
+            t = pp ? new Date(pp.textContent).getTime() : Date.now();
+            out.push({ src: key, title: cleanTitle(tt.textContent), link: ll.textContent, time: isNaN(t) ? Date.now() : t });
+          });
+        } catch (e) { out = []; }
+        cb(out);
+      }, function () { cb([]); }, true);
+    }
+    xhr('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rss), function (d) {
+      var out = [];
+      if (d.status !== 'ok' || !d.items || !d.items.length) { viaProxy(); return; }
+      each(d.items, function (i) {
+        var t = new Date(String(i.pubDate).replace(' ', 'T') + 'Z').getTime();
+        out.push({ src: key, title: cleanTitle(i.title), link: i.link, time: isNaN(t) ? Date.now() : t });
+      });
+      cb(out);
+    }, viaProxy);
+  }
+  function loadNews() {
+    var keys = NEWS_KEYS.filter(function (k) { return settings.sources[k] !== false; }), pending = keys.length, all = [];
+    newsState = 'loading'; newsLive = 0; renderNews();
+    if (!settings.liveNews || !keys.length) { newsItems = []; newsState = settings.liveNews ? 'none' : 'off'; renderNews(); return; }
+    each(keys, function (k) {
+      fetchSite(k, function (out) {
+        if (out.length) { newsLive++; all = all.concat(out.slice(0, 8)); }
+        pending--;
+        if (pending === 0) { all.sort(function (a, b) { return b.time - a.time; }); newsItems = all; newsState = 'done'; renderNews(); }
+      });
+    });
+  }
+  function renderNews() {
+    var h = '', list = [], sample = false, opts = '<option value="all">All sources</option>', total = NEWS_KEYS.filter(function (k) { return settings.sources[k] !== false; }).length, i;
+    each(NEWS_KEYS, function (k) { if (settings.sources[k] !== false) { opts += '<option value="' + k + '"' + (newsF === k ? ' selected' : '') + '>' + SRC[k].name + '</option>'; } });
+    $('newsSrc').innerHTML = opts;
+    if (newsState === 'loading') {
+      for (i = 0; i < 5; i++) { h += '<div class="nrow"><span class="sk"></span><span class="sk"></span><span class="sk"></span></div>'; }
+      $('newsList').innerHTML = h; $('newsMeta').textContent = 'Loading headlines...'; return;
+    }
+    if (newsState !== 'done' || !newsItems.length) {
+      sample = true;
+      each(SAMPLE_HEADLINES, function (x) { if (settings.sources[x[0]] !== false) { list.push({ src: x[0], title: x[1], link: SRC[x[0]].url, time: Date.now() - x[2] * 3600000 }); } });
+    } else { list = newsItems.slice(); }
+    list = list.filter(function (n) { return newsF === 'all' || n.src === newsF; });
+    each(list.slice(0, 20), function (n) {
+      h += '<a class="nrow" href="' + esc(n.link) + '" target="_blank" rel="noopener"><span class="m">' + esc(SRC[n.src].name) + '</span><span>' + esc(n.title) + '</span><span class="m">' + ago(n.time) + '</span></a>';
+    });
+    if (!list.length) { h = '<div class="empty">No headlines for this source.</div>'; }
+    $('newsList').innerHTML = h;
+    $('newsMeta').innerHTML = sample ? 'Live headlines could not be loaded, so these are labelled sample headlines. <button class="link" data-newsretry="1">Try again</button>' : 'Headlines via Google News from ' + newsLive + ' of ' + total + ' sources. Open an article for the full story.';
+  }
+
+  /* ---------- live earthquakes ---------- */
+  function loadQuakes() {
+    var start;
+    if (!settings.liveQuakes) { liveQuakes = []; quakeState = ''; refresh(); return; }
+    start = new Date(Date.now() - 30 * 86400000).toISOString().substring(0, 10);
+    xhr('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=4&maxlatitude=22&minlongitude=116&maxlongitude=128&minmagnitude=4.5&orderby=time&limit=80&starttime=' + start, function (d) {
+      liveQuakes = [];
+      each(d.features || [], function (f) {
+        var p = f.properties, c = f.geometry.coordinates, m = p.mag == null ? 0 : p.mag, sev = m < 5 ? 0 : (m < 5.8 ? 1 : (m < 6.5 ? 2 : 3));
+        liveQuakes.push({ id: 'q' + f.id, live: true, type: 'quake', sev: sev, trust: 'official', src: 'usgs', srcLabel: 'USGS', time: p.time, title: 'M' + m.toFixed(1) + ' ' + (p.place || 'Earthquake'), desc: 'Instrument-recorded event from the USGS catalogue.', place: p.place || 'Philippines', lat: c[1], lng: c[0], link: p.url, obsTitle: 'Official parameters (USGS)', lines: [['Magnitude', m.toFixed(1) + (p.magType ? ' (' + p.magType + ')' : '')], ['Depth', c[2] != null ? Math.round(c[2]) + ' km' : 'n/a'], ['Epicenter', c[1].toFixed(2) + ', ' + c[0].toFixed(2)], ['Review status', p.status || 'n/a'], ['Felt reports', p.felt ? String(p.felt) : 'None reported to USGS']] });
+      });
+      quakeState = 'ok'; refresh();
+    }, function () { liveQuakes = []; quakeState = 'unavailable'; refresh(); });
+  }
+
+  /* ---------- contacts ---------- */
+  function renderContacts() {
+    var h = '';
+    each(CONTACTS, function (c) {
+      h += '<tr' + (c[3] ? ' class="big"' : '') + '><td>' + esc(c[0]) + '</td><td>';
+      each(c[1], function (n) { h += '<a class="tel" href="tel:' + n[1] + '">' + n[0] + '</a>'; });
+      h += '</td><td class="m">' + esc(c[2]) + '</td></tr>';
+    });
+    $('contacts').innerHTML = h;
+  }
+
+  /* ---------- report form ---------- */
+  function fillReport() {
+    var h = '';
+    each(TORDER, function (t) { h += '<option value="' + t + '">' + TYPES[t].label + '</option>'; });
+    $('rType').innerHTML = h;
+    h = ''; each(SEV, function (s, i) { h += '<option value="' + i + '">' + s + '</option>'; });
+    $('rSev').innerHTML = h;
+    h = ''; each(EFFECTS, function (e) { h += '<label class="chk"><input type="checkbox" class="efx" value="' + esc(e) + '"> ' + esc(e) + '</label>'; });
+    $('efxBox').innerHTML = h;
+    h = ''; each(VOLC_OBS, function (e) { h += '<label class="chk"><input type="checkbox" class="obs" value="' + esc(e) + '"> ' + esc(e) + '</label>'; });
+    $('obsBox').innerHTML = h;
+  }
+  function rSevHelp() { var t = $('rType').value, s = parseInt($('rSev').value, 10); $('rSevHelp').textContent = SEV[s] + ': ' + SEVDESC[t][s]; }
+  function rTypeChanged() {
+    var t = $('rType').value;
+    $('secFlood').style.display = t === 'flood' ? 'block' : 'none';
+    $('secFire').style.display = t === 'fire' ? 'block' : 'none';
+    $('secQuake').style.display = t === 'quake' ? 'block' : 'none';
+    $('secVolc').style.display = t === 'volcano' ? 'block' : 'none';
+    rSevHelp();
+  }
+  function setPending(lat, lng) {
+    pendLat = lat; pendLng = lng;
+    $('rLoc').textContent = 'Location set: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+    if (map) { if (pickMark) { map.removeLayer(pickMark); } pickMark = L.circleMarker([lat, lng], { radius: 9, color: '#4c8dff', fillOpacity: 0.4 }).addTo(map); }
+  }
+  function clearChecks(c) { each(document.getElementsByClassName(c), function (x) { x.checked = false; }); }
+  function getChecks(c) { var o = []; each(document.getElementsByClassName(c), function (x) { if (x.checked) { o.push(x.value); } }); return o; }
+  function openReport(keep) {
+    if (!keep) {
+      $('rType').value = tf === 'all' ? 'flood' : tf; $('rSev').value = '0';
+      each(['rTitle', 'rDesc', 'rPlace', 'rDepth', 'rFDur', 'rBurn', 'rStruct', 'rPhoto'], function (id) { $(id).value = ''; });
+      $('rEvac').selectedIndex = 0; $('rPrev').style.display = 'none';
+      clearChecks('efx'); clearChecks('obs');
+      pendLat = null; pendLng = null; pendImg = ''; $('rLoc').textContent = 'No location set';
+      if (pickMark && map) { map.removeLayer(pickMark); pickMark = null; }
+      rTypeChanged();
+    }
+    $('reportBg').className = 'bg show';
+  }
+  function closeReport() { $('reportBg').className = 'bg'; if (pickMark && map) { map.removeLayer(pickMark); pickMark = null; } }
+  function endPick() { picking = false; $('pickbar').style.display = 'none'; }
+  function onPhoto() {
+    var f = $('rPhoto').files[0], fr;
+    if (!f) { return; }
+    fr = new FileReader();
+    fr.onload = function () {
+      var im = new Image();
+      im.onload = function () {
+        var m = 800, w = im.width, h = im.height, c;
+        if (w > m || h > m) { if (w > h) { h = Math.round(h * m / w); w = m; } else { w = Math.round(w * m / h); h = m; } }
+        c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(im, 0, 0, w, h);
+        pendImg = c.toDataURL('image/jpeg', 0.7);
+        $('rPrev').src = pendImg; $('rPrev').style.display = 'block';
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+  }
+  function gps() {
+    if (!navigator.geolocation) { alert('Location is not available on this device.'); return; }
+    $('rLoc').textContent = 'Finding your location...';
+    navigator.geolocation.getCurrentPosition(function (p) { setPending(p.coords.latitude, p.coords.longitude); if (map) { map.setView([p.coords.latitude, p.coords.longitude], 12); } },
+      function () { $('rLoc').textContent = 'Could not get your location. Use Pick on map.'; }, { enableHighAccuracy: true, timeout: 15000 });
+  }
+  function saveReport() {
+    var t = $('rType').value, obs = [], title = $('rTitle').value.replace(/^\s+|\s+$/g, ''), it, e, o;
+    if (pendLat === null) { alert('Please set a location first.'); return; }
+    if (!title) { title = TYPES[t].label + (t === 'volcano' ? ' observation' : ' report'); }
+    if (t === 'flood') {
+      if ($('rDepth').value) { obs.push(['Water depth', $('rDepth').value + ' ' + $('rUnit').value]); }
+      if ($('rFDur').value) { obs.push(['Flooded for', $('rFDur').value + ' hours']); }
+      obs.push(['Road', $('rRoad').value]); obs.push(['Water', $('rWater').value]);
+    }
+    if (t === 'fire') { if ($('rBurn').value) { obs.push(['Burning for', $('rBurn').value + ' hours']); } if ($('rStruct').value) { obs.push(['Structures affected', $('rStruct').value]); } }
+    if (t === 'quake') { e = getChecks('efx'); if (e.length) { obs.push(['Effects', e.join(', ')]); } }
+    if (t === 'volcano') { obs.push(['Ashfall', $('rAsh').value]); o = getChecks('obs'); if (o.length) { obs.push(['Observed', o.join(', ')]); } }
+    if ($('rEvac').value) { obs.push(['Evacuation', $('rEvac').value]); }
+    it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImg, obsTitle: 'Observations', obs: obs };
+    userItems.unshift(it);
+    if (!lsSet('datasaster_reports', userItems)) {
+      it.img = '';
+      if (!lsSet('datasaster_reports', userItems)) { userItems.shift(); alert('Could not save. Storage is full.'); return; }
+      alert('Saved without the photo (storage is almost full).');
+    }
+    closeReport();
+    tf = 'all'; trF = 'all'; sevF = -1; statusF = 'active'; query = ''; $('q').value = ''; $('sevSel').value = '-1'; $('statusSel').value = 'active';
+    selId = it.id; refresh();
+    if (map) { map.setView([it.lat, it.lng], 10); }
+    toast('Report added');
+  }
+  function toggleResolved(id) {
+    each(userItems, function (u) { if (u.id === id) { u.resolved = !u.resolved; u.resAt = u.resolved ? Date.now() : 0; toast(u.resolved ? 'Marked as resolved' : 'Reopened'); } });
+    lsSet('datasaster_reports', userItems);
+    refresh(); openDetail(id);
+  }
+  function deleteReport(id) {
+    var keep = [];
+    if (!window.confirm('Delete this report?')) { return; }
+    each(userItems, function (x) { if (x.id !== id) { keep.push(x); } });
+    userItems = keep; lsSet('datasaster_reports', userItems);
+    $('detailBg').className = 'bg'; if (selId === id) { selId = null; }
+    refresh(); toast('Report deleted');
+  }
+  var toastT = null;
+  function toast(msg) { var t = $('toast'); t.textContent = msg; t.className = 'toast show'; if (toastT) { clearTimeout(toastT); } toastT = setTimeout(function () { t.className = 'toast'; }, 2200); }
+
+  /* ---------- settings ---------- */
+  var viewing = 'dash';
+  function trow(key, label, desc, on) { return '<div class="trow"><div><b>' + label + '</b>' + (desc ? '<small>' + desc + '</small>' : '') + '</div><button class="sw' + (on ? ' on' : '') + '" data-tog="' + key + '" aria-label="' + label + '"></button></div>'; }
+  function tile(attr, val, ic, label, sub, on) { return '<button class="opt' + (on ? ' on' : '') + '" ' + attr + '="' + val + '">' + icon(ic, 18) + '<span><b>' + label + '</b><small>' + sub + '</small></span></button>'; }
+  function sect(ic, title, sub, body) { return '<section class="sc"><h3><span class="bx">' + icon(ic, 16) + '</span><span>' + title + '<small>' + sub + '</small></span></h3>' + body + '</section>'; }
+  function renderSettings() {
+    var s = settings, h = '', b;
+    h += '<div class="sv-head"><div><div class="m">Preferences</div><h1>Settings</h1><p class="m">Saved on this device and applied right away.</p></div><button class="btn" data-view="dash">' + icon('back', 15) + ' Back to dashboard</button></div>';
+    b = '<div class="opts">' + tile('data-theme-set', 'dark', 'moon', 'Dark', 'Low-light console', s.theme === 'dark') + tile('data-theme-set', 'light', 'sun', 'Light', 'Daylight contrast', s.theme === 'light') + '</div>';
+    h += sect('moon', 'Appearance', 'Choose the console theme.', b);
+    b = '<div class="opts">' + tile('data-base', 'dark', 'moon', 'Dark', 'Low-glare basemap', s.basemap === 'dark') + tile('data-base', 'street', 'pin', 'Street', 'Roads and labels', s.basemap === 'street') + tile('data-base', 'light', 'sun', 'Light', 'Pale basemap', s.basemap === 'light') + '</div>';
+    b += '<div class="trow" style="margin-top:8px"><div><b>Opening view</b></div><select data-sel="region">';
+    each(['ph', 'luzon', 'visayas', 'mindanao', 'ncr'], function (k) { b += '<option value="' + k + '"' + (s.region === k ? ' selected' : '') + '>' + REGION_NAMES[k] + '</option>'; });
+    b += '</select></div>';
+    h += sect('layers', 'Map', 'Basemap and where the map opens.', b);
+    b = '<div class="catchips">';
+    each(TORDER, function (t) { b += '<button class="cat' + (s.cats[t] ? ' on' : '') + '" data-tog="cat:' + t + '">' + icon(TYPES[t].ic, 15) + ' ' + TYPES[t].label + '</button>'; });
+    b += '</div><div class="hint">At least one category stays on.</div>';
+    h += sect('alert', 'Categories', 'Choose what appears in the feed and on the map.', b);
+    b = '<div class="srcgrid">';
+    each(SRC_KEYS, function (k) { b += '<div class="srci"><span>' + SRC[k].name + '</span><button class="sw' + (s.sources[k] !== false ? ' on' : '') + '" data-tog="src:' + k + '" aria-label="' + SRC[k].name + '"></button></div>'; });
+    b += '</div>';
+    h += sect('radar', 'Sources', 'Agencies and news outlets to include.', b);
+    b = trow('demo', 'Sample records', 'Labelled demonstration incidents.', s.demo);
+    b += trow('liveQuakes', 'Live earthquakes', 'USGS, magnitude 4.5 and above.', s.liveQuakes);
+    b += trow('liveNews', 'Live headlines', 'Google News, from the selected outlets.', s.liveNews);
+    b += trow('showUnverified', 'Unverified reports', 'Community reports without review.', s.showUnverified);
+    b += trow('showPhotos', 'Photos', 'Thumbnails in the feed and details.', s.showPhotos);
+    b += '<div class="trow"><div><b>Auto refresh</b></div><select data-sel="refresh"><option value="0"' + (s.refresh == 0 ? ' selected' : '') + '>Off</option><option value="5"' + (s.refresh == 5 ? ' selected' : '') + '>Every 5 minutes</option><option value="15"' + (s.refresh == 15 ? ' selected' : '') + '>Every 15 minutes</option></select></div>';
+    b += '<div class="trow"><div><b>Install app</b><small>' + (deferredPrompt ? 'Add DATAsaster to your home screen.' : 'iPhone: Share, then Add to Home Screen. Android or desktop: use Install in the browser menu.') + '</small></div>' + (deferredPrompt ? '<button class="btn sm" data-install="1">Install</button>' : '') + '</div>';
+    h += sect('refresh', 'Data', 'What is loaded and how often.', b);
+    h += '<div class="sv-foot"><button class="btn" data-clearmine="1">Delete my reports (' + userItems.length + ')</button><button class="btn danger" data-reset="1">Reset to defaults</button></div>';
+    $('viewSettings').innerHTML = h;
+  }
+  function showView(v) {
+    viewing = v;
+    $('viewDash').hidden = v !== 'dash';
+    $('viewSettings').hidden = v !== 'settings';
+    if (v === 'settings') { renderSettings(); }
+    $('btnSet').innerHTML = v === 'settings' ? icon('back', 15) + '<span class="lbl"> Dashboard</span>' : icon('sliders', 15) + '<span class="lbl"> Settings</span>';
+    window.scrollTo(0, 0);
+    if (v === 'dash' && map) { setTimeout(function () { map.invalidateSize(); }, 50); }
+  }
+
+  var deferredPrompt = null;
+  function setPane(p) {
+    document.body.setAttribute('data-pane', p);
+    each(document.getElementsByClassName('tabbar')[0].getElementsByTagName('button'), function (b) { b.className = b.getAttribute('data-pane') === p ? 'on' : ''; });
+    window.scrollTo(0, 0);
+    if (p === 'map' && map) { setTimeout(function () { map.invalidateSize(); }, 60); }
+  }
+  function initApp() {
+    var tb = '', net = $('net');
+    each([['map', 'pin', 'Map'], ['feed', 'list', 'Feed'], ['news', 'news', 'News'], ['contacts', 'phone', 'Help']], function (x) { tb += '<button data-pane="' + x[0] + '">' + icon(x[1], 20) + '<span>' + x[2] + '</span></button>'; });
+    $('tabbar').innerHTML = tb;
+    setPane('map');
+    function netState() { net.hidden = navigator.onLine !== false; }
+    window.addEventListener('online', function () { netState(); loadQuakes(); loadNews(); refreshLayers(); });
+    window.addEventListener('offline', netState);
+    netState();
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredPrompt = e; if (viewing === 'settings') { renderSettings(); } });
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'localhost') { navigator.serviceWorker.register('sw.js').catch(function () {}); }
+  }
+
+  /* ---------- wiring ---------- */
+  function refresh() { renderBar(); renderFeed(); drawMarkers(); }
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', settings.theme);
+    if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
+    if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
+  }
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres'];
+  function findAction(el) {
+    var i;
+    while (el && el !== document) {
+      if (el.getAttribute) { for (i = 0; i < ACTIONS.length; i++) { if (el.hasAttribute(ACTIONS[i])) { return [ACTIONS[i], el.getAttribute(ACTIONS[i])]; } } }
+      el = el.parentNode;
+    }
+    return null;
+  }
+  document.addEventListener('click', function (e) {
+    var a = findAction(e.target), n, v, parts;
+    if (!a) { if (panelOpen && !$('lpanel').contains(e.target) && e.target !== $('btnLayers') && !$('btnLayers').contains(e.target)) { panelOpen = false; $('lpanel').hidden = true; } return; }
+    n = a[0]; v = a[1];
+    if (n === 'data-tf') { tf = v; selId = null; refresh(); return; }
+    if (n === 'data-tr') { trF = (trF === v) ? 'all' : v; refresh(); return; }
+    if (n === 'data-open') { e.stopPropagation(); select(v, true); openDetail(v); return; }
+    if (n === 'data-id') { select(v, true); return; }
+    if (n === 'data-showall') { range = 'all'; $('range').value = 'all'; $('day').hidden = true; refresh(); return; }
+    if (n === 'data-close') { $('detailBg').className = 'bg'; return; }
+    if (n === 'data-view') { showView(v); return; }
+    if (n === 'data-resolve') { toggleResolved(v); return; }
+    if (n === 'data-showres') { statusF = 'all'; $('statusSel').value = 'all'; refresh(); return; }
+    if (n === 'data-pane') { setPane(v); return; }
+    if (n === 'data-install') { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; renderSettings(); } return; }
+    if (n === 'data-theme-set') { settings.theme = v; saveSettings(); applyTheme(); renderSettings(); return; }
+    if (n === 'data-base') { settings.basemap = v; saveSettings(); setTiles(); renderBase(); if (viewing === 'settings') { renderSettings(); } return; }
+    if (n === 'data-layer') { settings.layers[v] = !settings.layers[v]; saveSettings(); applyLayers(); return; }
+    if (n === 'data-layers-refresh') { refreshLayers(); return; }
+    if (n === 'data-legend') { legendOpen = !legendOpen; renderLegend(); return; }
+    if (n === 'data-fly') { $('detailBg').className = 'bg'; select(v, true); return; }
+    if (n === 'data-del') { deleteReport(v); return; }
+    if (n === 'data-newsretry') { loadNews(); return; }
+    if (n === 'data-tog') {
+      parts = v.split(':');
+      if (parts[0] === 'cat') { if (settings.cats[parts[1]] && !(function () { var c = 0; each(TORDER, function (t) { if (settings.cats[t]) { c++; } }); return c > 1; })()) { return; } settings.cats[parts[1]] = !settings.cats[parts[1]]; if (tf === parts[1] && !settings.cats[parts[1]]) { tf = 'all'; } }
+      else if (parts[0] === 'src') { settings.sources[parts[1]] = !(settings.sources[parts[1]] !== false); }
+      else { settings[v] = !settings[v]; }
+      saveSettings(); renderSettings(); refresh();
+      if (v === 'liveQuakes') { loadQuakes(); }
+      if (v === 'liveNews' || (parts[0] === 'src' && NEWS_KEYS.indexOf(parts[1]) >= 0)) { loadNews(); }
+      return;
+    }
+    if (n === 'data-clearmine') { if (window.confirm('Delete all reports saved on this device?')) { userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
+    if (n === 'data-reset') { if (window.confirm('Reset all settings to defaults?')) { settings = clone(DEFAULTS); saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); applyLayers(); renderSettings(); refresh(); loadQuakes(); loadNews(); } return; }
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target, k = el.getAttribute ? el.getAttribute('data-sel') : null;
+    if (!k) { return; }
+    if (k === 'region') { settings.region = el.value; fitRegion(); }
+    if (k === 'refresh') { settings.refresh = parseInt(el.value, 10); applyTheme(); }
+    saveSettings();
+  });
+  document.addEventListener('keydown', function (e) { if (e.keyCode === 27) { $('detailBg').className = 'bg'; if (viewing === 'settings') { showView('dash'); } closeReport(); endPick(); } });
+  function bgClose(id, fn) { $(id).addEventListener('mousedown', function (e) { if (e.target === $(id)) { fn(); } }); }
+
+  function start() {
+    var tick;
+    buildDemo();
+    each(userItems, function (u) { u.own = true; u.trust = 'unverified'; u.srcLabel = u.srcLabel || 'Community report'; if (!u.obs) { u.obs = []; } });
+    $('logo').innerHTML = icon('radar', 26);
+    $('btnSet').innerHTML = icon('sliders', 15) + '<span class="lbl"> Settings</span>';
+    $('btnRep').innerHTML = icon('plus', 15) + '<span class="lbl"> Report incident</span>';
+    $('btnLayers').innerHTML = icon('layers', 15) + ' Live layers';
+    $('newsRef').innerHTML = icon('refresh', 13) + ' Refresh';
+    $('icS').innerHTML = icon('search', 15);
+    $('rX').innerHTML = icon('x');
+    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews();
+    initMap(); refresh(); applyLayers(); renderLegend();
+
+    $('q').addEventListener('input', function () { query = this.value.toLowerCase(); refresh(); });
+    $('sevSel').addEventListener('change', function () { sevF = parseInt(this.value, 10); refresh(); });
+    $('statusSel').addEventListener('change', function () { statusF = this.value; refresh(); });
+    $('sortSel').addEventListener('change', function () { sortBy = this.value; renderFeed(); });
+    $('range').addEventListener('change', function () {
+      range = this.value;
+      if (range === 'day') { if (!dayVal) { dayVal = manilaDay(Date.now()); } $('day').value = dayVal; $('day').hidden = false; } else { $('day').hidden = true; }
+      refresh();
+    });
+    $('day').addEventListener('change', function () { dayVal = this.value; refresh(); });
+    $('btnSet').addEventListener('click', function () { showView(viewing === 'settings' ? 'dash' : 'settings'); });
+    $('btnRep').addEventListener('click', function () { openReport(false); });
+    $('btnLayers').addEventListener('click', function () { panelOpen = !panelOpen; $('lpanel').hidden = !panelOpen; if (panelOpen) { renderPanel(); } });
+    $('newsSrc').addEventListener('change', function () { newsF = this.value; renderNews(); });
+    $('newsRef').addEventListener('click', loadNews);
+    $('rCancel').addEventListener('click', closeReport); $('rX').addEventListener('click', closeReport);
+    $('rSave').addEventListener('click', saveReport);
+    $('rType').addEventListener('change', rTypeChanged); $('rSev').addEventListener('change', rSevHelp);
+    $('rDepth').addEventListener('input', function () { var v = parseFloat(this.value), cm; if (isNaN(v)) { return; } cm = $('rUnit').value === 'm' ? v * 100 : v; $('rSev').value = String(cm < 25 ? 0 : (cm < 60 ? 1 : (cm < 110 ? 2 : 3))); rSevHelp(); });
+    $('rPhoto').addEventListener('change', onPhoto);
+    $('rPick').addEventListener('click', function () { picking = true; $('reportBg').className = 'bg'; $('pickbar').style.display = 'block'; });
+    $('rGps').addEventListener('click', gps);
+    $('pickCancel').addEventListener('click', function () { endPick(); openReport(true); });
+    bgClose('detailBg', function () { $('detailBg').className = 'bg'; });
+    bgClose('reportBg', closeReport);
+    tick = function () { $('clk').textContent = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit' }); };
+    tick(); setInterval(tick, 1000);
+    window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } });
+    initApp();
+    loadQuakes(); loadNews();
+  }
+  start();
+})();
