@@ -13,7 +13,7 @@ Philippine disaster monitoring: map, live layers, incidents, news and emergency 
 | `lib/` | The Leaflet map library. Do not edit | Nobody |
 | `manifest.webmanifest`, `sw.js`, `icon-*.png` | Makes it installable and usable offline | Rarely |
 
-## Put it online (GitHub Pages, free)
+## (GitHub Pages, free)
 
 1. Everyone makes a free account at github.com.
 2. One person: click **+** (top right), then **New repository**. Name it `datasaster`, choose **Public**, press **Create repository**.
