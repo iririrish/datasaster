@@ -1,4 +1,4 @@
-# DATAsaster
+# DATAsaster (demo only)
 
 Philippine disaster monitoring: map, live layers, incidents, news and emergency contacts.
 
