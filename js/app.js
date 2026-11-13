@@ -244,6 +244,12 @@
     return '<div class="m"><span class="dot" style="--c:' + (r.resolved ? RESCOL : SEVCOL[r.sev]) + '"></span>' + (r.resolved ? 'Resolved' : SEV[r.sev]) + ' \u00b7 ' + t.label + ' \u00b7 ' + ago(r.time) + '</div>';
   }
   function renderFeed() {
+    var rows = $('rows'), par = rows.parentNode, sa = rows.scrollTop, sb = par ? par.scrollTop : 0, sy = window.pageYOffset || 0;
+    renderFeedInner();
+    rows.scrollTop = sa; if (par) { par.scrollTop = sb; }
+    window.scrollTo(0, sy);
+  }
+  function renderFeedInner() {
     var items = filtered(), h = '', hidden, note;
     each(groupItems(items), function (g) {
       var r = g.rep, t = TYPES[r.type], n = g.members.length, sel = false, k, dist = '';
@@ -1087,7 +1093,9 @@
       h += sect('alert', 'Admin', 'For moderators only. Everyone else is signed in automatically.', b);
     }
     h += '<div class="sv-foot"><button class="btn" data-clearmine="1">Delete my reports (' + (userItems.length + myCloud().length) + ')</button><button class="btn danger" data-reset="1">Reset to defaults</button></div>';
+    var keepY = window.pageYOffset || 0;
     $('viewSettings').innerHTML = h;
+    window.scrollTo(0, keepY);
   }
   function showView(v) {
     viewing = v;
@@ -1142,7 +1150,7 @@
     if (n === 'data-adminlogin') {
       var em = $('adEmail').value.replace(/^\s+|\s+$/g, ''), pw = $('adPw').value;
       if (!em || !pw) { toast('Enter email and password'); return; }
-      CLOUD.login(em, pw, function () { toast('Signed in'); }, function () { toast('Wrong email or password'); });
+      CLOUD.login(em, pw, function () { toast('Signed in'); }, function (er) { alert('Sign-in failed.\n\nError: ' + (er && er.code ? er.code : 'unknown') + (er && er.message ? '\n' + er.message : '')); });
       return;
     }
     if (n === 'data-sv') {
