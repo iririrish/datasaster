@@ -233,9 +233,9 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 
 /* Tagline: allow it to wrap neatly */
 .brand > div{min-width:0}
-.brand small{max-width:540px;line-height:1.3}
+.brand small{max-width:none;white-space:nowrap;line-height:1.3}
 @media(max-width:900px){
-  .brand small{font-size:11px;max-width:210px}
+  .brand small{font-size:11px;max-width:none;white-space:normal}
 }
 
 /* Main menu: pill buttons with icons */
