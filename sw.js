@@ -1,6 +1,7 @@
-var CACHE = 'datasaster-v5';
+var CACHE = 'datasaster-v6';
 var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
-  './css/style.css', './js/data.js', './js/app.js', './lib/leaflet.js', './lib/leaflet.css'];
+  './css/style.css', './js/data.js', './js/app.js', './lib/leaflet.js', './lib/leaflet.css',
+  './lib/firebase-app-compat.js', './lib/firebase-auth-compat.js', './lib/firebase-firestore-compat.js', './js/firebase-config.js', './js/cloud.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));

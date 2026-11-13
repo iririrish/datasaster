@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /reports/{id} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && id.matches('[A-Za-z0-9_-]{1,40}')
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','obs','time','resolved','resAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.type in ['flood','fire','quake','volcano']
+        && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.desc is string && request.resource.data.desc.size() <= 2000
+        && request.resource.data.place is string && request.resource.data.place.size() <= 200
+        && request.resource.data.lat is number && request.resource.data.lng is number
+        && request.resource.data.time is number
+        && request.resource.data.img is string && request.resource.data.img.size() < 400000
+        && request.resource.data.obs is list && request.resource.data.obs.size() <= 12;
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']);
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+  }
+}
