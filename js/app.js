@@ -38,6 +38,11 @@
     flame: '<path d="M12 22c4 0 7-2.800 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-4 6-4 12 0 4 3 7 7 7z"/>',
     pulse: '<polyline points="3 12 7 12 10 4 14 20 17 12 21 12"/>',
     mountain: '<path d="M2 20l7-13 4 7 3-4 6 10z"/>',
+    slide: '<path d="M3 5l18 10v5H3z"/><circle cx="14" cy="8" r="1.5"/><circle cx="18" cy="11.5" r="1.2"/>',
+    zoomin: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/>',
+    zoomout: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/><line x1="8" y1="11" x2="14" y2="11"/>',
+    right: '<polyline points="9 6 15 12 9 18"/>',
+    left: '<polyline points="15 6 9 12 15 18"/>',
     alert: '<path d="M12 3l9.500 17h-19z"/><line x1="12" y1="10" x2="12" y2="14"/><line x1="12" y1="17" x2="12" y2="17.200"/>',
     storm: '<path d="M4 8h10a3 3 0 1 0-3-3"/><path d="M2 13h15a3 3 0 1 1-3 3"/><path d="M5 18h6"/>',
     search: '<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.500" y2="16.500"/>',
@@ -66,10 +71,12 @@
     flood: { label: 'Flooding', ic: 'drop' },
     fire: { label: 'Fire', ic: 'flame' },
     quake: { label: 'Earthquake', ic: 'pulse' },
-    volcano: { label: 'Volcanic eruption', ic: 'mountain' }
+    volcano: { label: 'Volcanic eruption', ic: 'mountain' },
+    typhoon: { label: 'Typhoon or storm', ic: 'storm' },
+    landslide: { label: 'Landslide', ic: 'slide' }
   };
-  var TORDER = ['flood', 'fire', 'quake', 'volcano'];
-  var TSHORT = { flood: 'Flooding', fire: 'Fire', quake: 'Earthquake', volcano: 'Volcanic' };
+  var TORDER = ['flood', 'fire', 'quake', 'volcano', 'typhoon', 'landslide'];
+  var TSHORT = { flood: 'Flooding', fire: 'Fire', quake: 'Earthquake', volcano: 'Volcanic', typhoon: 'Typhoon', landslide: 'Landslide' };
   var SEV = ['Low', 'Moderate', 'High', 'Critical'];
   var SEVCOL = ['#34d399', '#fbbf24', '#fb923c', '#ef4444'];
   var SEVINK = ['#0b1f17', '#2b2105', '#2b1405', '#ffffff'];
@@ -78,7 +85,9 @@
     flood: ['Ankle-level flooding', 'Knee-level flooding', 'Waist-level flooding', 'Chest-level or higher flooding'],
     fire: ['Small contained fire', 'Expanding fire', 'Large fire', 'Widespread fire or threat to life'],
     quake: ['Felt only, no damage', 'Minor damage', 'Significant damage', 'Collapse, injuries or trapped people'],
-    volcano: ['Minor activity', 'Noticeable activity or light ashfall', 'Heavy ashfall or major activity', 'Immediate threat to life']
+    volcano: ['Minor activity', 'Noticeable activity or light ashfall', 'Heavy ashfall or major activity', 'Immediate threat to life'],
+    typhoon: ['Strong wind or heavy rain', 'Damaged roofs or fallen trees', 'Widespread damage or power cuts', 'Destruction or threat to life'],
+    landslide: ['Small slip, road still open', 'Cracks seen or road partly blocked', 'Road blocked or houses threatened', 'Houses buried or people trapped']
   };
   var REGIONS = { ph: [[4.5, 116], [21.5, 127]], luzon: [[12.3, 119.5], [19.0, 124.5]], visayas: [[9.0, 121.0], [12.5, 126.5]], mindanao: [[5.3, 121.5], [10.0, 127.0]], ncr: [[14.35, 120.9], [14.85, 121.2]] };
   var REGION_NAMES = { ph: 'Philippines', luzon: 'Luzon', visayas: 'Visayas', mindanao: 'Mindanao', ncr: 'Metro Manila' };
@@ -90,9 +99,12 @@
 
   var EFFECTS = ['Felt shaking', 'Objects fell or swayed', 'Cracks in walls or roads', 'Damaged buildings', 'Landslide', 'Injuries or trapped people'];
   var VOLC_OBS = ['Steam or plume visible', 'Rumbling or explosions heard', 'Sulfur smell', 'Lava or glow seen', 'Roads or crops covered in ash'];
+  var TYPH_OBS = ['Fallen trees or poles', 'Power outage', 'Roofs blown off', 'High waves or storm surge', 'Flooded roads'];
+  var LAND_OBS = ['Road blocked', 'Houses damaged or buried', 'People trapped or missing', 'Cracks or ground movement', 'More slides likely'];
+  var MAXPHOTOS = 3, IMG_MAX = 200000;
 
   /* ---------- state ---------- */
-  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
   SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var settings = clone(DEFAULTS);
@@ -110,7 +122,7 @@
   var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []), cloudRaw = [], cloudItems = [], detailId = null, userPos = null, nearKm = 0, flagged = lsGet('datasaster_flagged', {}), flagList = [], flagsOn = false, pendingHash = '', firstCloud = true, seenAlert = {}, lastPostAt = lsGet('datasaster_lastpost', 0), GROUP_KM = 1;
   var newsItems = [], newsState = 'loading', newsLive = 0, quakeState = '';
   var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '7d', dayVal = '', selId = null, newsF = 'all';
-  var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImg = '';
+  var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImgs = [], photoBusy = 0, lbList = [], lbIdx = 0;
   var legendOpen = true, panelOpen = false;
   var lstat = {}, lgroups = {}, lupd = {};
   var rv = { loaded: false, loading: false, failed: false, host: '', radar: [], sat: [] }, rvLayers = [], rvCloud = null, rvTimer = null, rvIdx = 0, rvLabel = '';
@@ -224,6 +236,10 @@
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="#2a3340"/><text x="60" y="64" text-anchor="middle" fill="#8f99a8" font-size="12" font-family="Arial">Sample photo</text></svg>';
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
+  function photosOf(r) {
+    if (r.imgs && r.imgs.length) { return r.imgs; }
+    return r.img ? [r.img] : [];
+  }
   function statusLine(r, t) {
     return '<div class="m"><span class="dot" style="--c:' + (r.resolved ? RESCOL : SEVCOL[r.sev]) + '"></span>' + (r.resolved ? 'Resolved' : SEV[r.sev]) + ' \u00b7 ' + t.label + ' \u00b7 ' + ago(r.time) + '</div>';
   }
@@ -238,7 +254,7 @@
       h += '<h3>' + esc(r.title) + '</h3>';
       if (n > 1) { h += '<div class="m"><span class="grp">+' + (n - 1) + ' similar report' + (n > 2 ? 's' : '') + ' nearby</span></div>'; }
       h += '<div class="m">' + esc(r.place) + dist + '</div><div class="m">' + trustLine(r) + ' \u00b7 <button class="link" data-open="' + r.id + '">' + (n > 1 ? 'Open thread' : 'Details') + '</button></div></div>';
-      if (settings.showPhotos) { h += '<img class="thumb" alt="" src="' + (r.img || samplePhoto()) + '">'; }
+      if (settings.showPhotos) { h += '<img class="thumb" alt="" src="' + (photosOf(r)[0] || samplePhoto()) + '">'; }
       h += '</div>';
     });
     if (!items.length) { h = '<div class="empty">No records match these filters.<br>Widen the date range or clear the filters.</div>'; }
@@ -496,7 +512,7 @@
     if (!legendOpen) { $('legend').innerHTML = h; return; }
     h += '<div class="lg-b">';
     h += lgSec('Incident severity', [[SEVCOL[0], 'Low'], [SEVCOL[1], 'Moderate'], [SEVCOL[2], 'High'], [SEVCOL[3], 'Critical']].concat(statusF !== 'active' ? [[RESCOL, 'Resolved']] : []));
-    h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano.</div>';
+    h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano, swirl typhoon, slope landslide.</div>';
     if (settings.layers.radar) { h += lgSec('Rain radar', [['#4ade80', 'Light rain'], ['#facc15', 'Moderate'], ['#fb923c', 'Heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
     if (settings.layers.cloud) { h += lgSec('Cloud cover', [['#f3f4f6', 'Cold, high cloud tops'], ['#6b7280', 'Warmer, thinner cloud']]); }
     if (settings.layers.rain) { rows = []; each(RAIN_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('Rain forecast, next 24 h', rows); }
@@ -517,14 +533,19 @@
   }
   function kv(rows) { var h = '<table class="kv">'; each(rows, function (o) { h += '<tr><td>' + esc(o[0]) + '</td><td>' + esc(o[1]) + '</td></tr>'; }); return h + '</table>'; }
   function openDetail(id) {
-    var r = byId(id), t, h, rel, th;
+    var r = byId(id), t, h, rel, th, ph;
     if (!r) { return; }
     detailId = id;
     t = TYPES[r.type];
     h = '<button class="mx" data-close="detail" aria-label="Close">' + icon('x') + '</button>';
     h += statusLine(r, t);
     h += '<h2>' + esc(r.title) + '</h2><div class="m">' + trustLine(r) + '</div>';
-    if (settings.showPhotos && r.img) { h += '<img class="hero" alt="" src="' + r.img + '">'; }
+    ph = photosOf(r);
+    if (settings.showPhotos && ph.length) {
+      h += '<div class="gal"><button type="button" class="heroBtn" data-photo="' + r.id + '#0" aria-label="Open photo 1 of ' + ph.length + ', tap to zoom"><img class="hero" alt="Photo 1 of ' + ph.length + '" src="' + ph[0] + '"><span class="zoomtag">' + icon('zoomin', 14) + ' Tap to zoom' + (ph.length > 1 ? ' \u00b7 ' + ph.length + ' photos' : '') + '</span></button>';
+      if (ph.length > 1) { h += '<div class="gthumbs">'; each(ph, function (p, gi) { h += '<button type="button" class="gt" data-photo="' + r.id + '#' + gi + '" aria-label="Open photo ' + (gi + 1) + '"><img alt="" src="' + p + '"></button>'; }); h += '</div>'; }
+      h += '</div>';
+    }
     h += '<p>' + esc(r.desc) + '</p>';
     h += '<h3>Record</h3>' + kv([['Location', r.place], ['Date and time', fmtFull(r.time)], ['Coordinates', r.lat.toFixed(4) + ', ' + r.lng.toFixed(4)], ['Severity', SEV[r.sev] + ': ' + SEVDESC[r.type][r.sev]], ['Status', r.resolved ? 'Resolved' + (r.resAt ? ' on ' + fmtFull(r.resAt) : '') : 'Active']].concat(r.resolved && r.resNote ? [['Resolution', r.resNote]] : []));
     if (r.lines) { h += '<h3>' + esc(r.obsTitle) + '</h3>' + kv(r.lines); }
@@ -716,6 +737,10 @@
     $('efxBox').innerHTML = h;
     h = ''; each(VOLC_OBS, function (e) { h += '<label class="chk"><input type="checkbox" class="obs" value="' + esc(e) + '"> ' + esc(e) + '</label>'; });
     $('obsBox').innerHTML = h;
+    h = ''; each(TYPH_OBS, function (e) { h += '<label class="chk"><input type="checkbox" class="tobs" value="' + esc(e) + '"> ' + esc(e) + '</label>'; });
+    $('tobsBox').innerHTML = h;
+    h = ''; each(LAND_OBS, function (e) { h += '<label class="chk"><input type="checkbox" class="lobs" value="' + esc(e) + '"> ' + esc(e) + '</label>'; });
+    $('lobsBox').innerHTML = h;
   }
   function rSevHelp() { var t = $('rType').value, s = parseInt($('rSev').value, 10); $('rSevHelp').textContent = SEV[s] + ': ' + SEVDESC[t][s]; }
   function rTypeChanged() {
@@ -724,6 +749,8 @@
     $('secFire').style.display = t === 'fire' ? 'block' : 'none';
     $('secQuake').style.display = t === 'quake' ? 'block' : 'none';
     $('secVolc').style.display = t === 'volcano' ? 'block' : 'none';
+    $('secTyph').style.display = t === 'typhoon' ? 'block' : 'none';
+    $('secLand').style.display = t === 'landslide' ? 'block' : 'none';
     rSevHelp();
   }
   function setPending(lat, lng) {
@@ -737,9 +764,10 @@
     if (!keep) {
       $('rType').value = tf === 'all' ? 'flood' : tf; $('rSev').value = '0';
       each(['rTitle', 'rDesc', 'rPlace', 'rDepth', 'rFDur', 'rBurn', 'rStruct', 'rPhoto'], function (id) { $(id).value = ''; });
-      $('rEvac').selectedIndex = 0; $('rPrev').style.display = 'none';
-      clearChecks('efx'); clearChecks('obs');
-      pendLat = null; pendLng = null; pendImg = ''; $('rLoc').textContent = 'No location set';
+      $('rEvac').selectedIndex = 0;
+      clearChecks('efx'); clearChecks('obs'); clearChecks('tobs'); clearChecks('lobs');
+      $('rWind').selectedIndex = 0; $('rRain').selectedIndex = 0; $('rCause').selectedIndex = 0;
+      pendLat = null; pendLng = null; pendImgs = []; renderPrevs(); $('rLoc').textContent = 'No location set';
       if (pickMark && map) { map.removeLayer(pickMark); pickMark = null; }
       rTypeChanged();
     }
@@ -747,24 +775,85 @@
   }
   function closeReport() { $('reportBg').className = 'bg'; if (pickMark && map) { map.removeLayer(pickMark); pickMark = null; } }
   function endPick() { picking = false; $('pickbar').style.display = 'none'; }
-  function onPhoto() {
-    var f = $('rPhoto').files[0], fr;
-    if (!f) { return; }
-    fr = new FileReader();
+  /* ---------- photos: 0 to 3 per report, each shrunk before upload ---------- */
+  function shrinkPhoto(im) {
+    var side = 900, q = 0.72, tries = 0, w, h, c, out = '';
+    while (tries < 12) {
+      w = im.width; h = im.height;
+      if (w > side || h > side) { if (w > h) { h = Math.round(h * side / w); w = side; } else { w = Math.round(w * side / h); h = side; } }
+      c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(im, 0, 0, w, h);
+      out = c.toDataURL('image/jpeg', q);
+      if (out.length <= IMG_MAX) { return out; }
+      if (q > 0.46) { q -= 0.1; } else { side = Math.round(side * 0.8); }
+      tries++;
+    }
+    return out.length <= IMG_MAX ? out : '';
+  }
+  function readPhoto(f, cb) {
+    var fr = new FileReader();
+    fr.onerror = function () { cb(''); };
     fr.onload = function () {
       var im = new Image();
-      im.onload = function () {
-        var m = 800, w = im.width, h = im.height, c;
-        if (w > m || h > m) { if (w > h) { h = Math.round(h * m / w); w = m; } else { w = Math.round(w * m / h); h = m; } }
-        c = document.createElement('canvas'); c.width = w; c.height = h;
-        c.getContext('2d').drawImage(im, 0, 0, w, h);
-        pendImg = c.toDataURL('image/jpeg', 0.7);
-        $('rPrev').src = pendImg; $('rPrev').style.display = 'block';
-      };
+      im.onerror = function () { cb(''); };
+      im.onload = function () { var d = ''; try { d = shrinkPhoto(im); } catch (e) { d = ''; } cb(d); };
       im.src = fr.result;
     };
     fr.readAsDataURL(f);
   }
+  function renderPrevs() {
+    var h = '', n = pendImgs.length;
+    each(pendImgs, function (p, i) {
+      h += '<div class="pv"><img alt="Photo ' + (i + 1) + ' preview" src="' + p + '"><button type="button" class="pdel" data-pdel="' + i + '" aria-label="Remove photo ' + (i + 1) + '">' + icon('x', 14) + '</button></div>';
+    });
+    $('rPrevs').innerHTML = h;
+    $('rPhoto').disabled = n >= MAXPHOTOS;
+    $('rPhotoHint').textContent = n ? (n + ' of ' + MAXPHOTOS + ' photos added' + (n < MAXPHOTOS ? '. You can add ' + (MAXPHOTOS - n) + ' more.' : '.')) : 'No photos added. You can add up to ' + MAXPHOTOS + ', or none.';
+  }
+  function onPhoto() {
+    var files = $('rPhoto').files, list = [], room = MAXPHOTOS - pendImgs.length, i;
+    for (i = 0; i < files.length && list.length < room; i++) { list.push(files[i]); }
+    if (files.length > room) { toast('Only ' + MAXPHOTOS + ' photos are allowed per report'); }
+    $('rPhoto').value = '';
+    function next(k) {
+      if (k >= list.length) { return; }
+      photoBusy++;
+      $('rPhotoHint').textContent = 'Preparing photo...';
+      readPhoto(list[k], function (d) {
+        photoBusy--;
+        if (d && pendImgs.length < MAXPHOTOS) { pendImgs.push(d); } else if (!d) { toast('A photo could not be used. Try a JPG or PNG.'); }
+        renderPrevs();
+        next(k + 1);
+      });
+    }
+    next(0);
+  }
+  /* ---------- photo viewer with zoom ---------- */
+  function lbShow() {
+    var n = lbList.length, im = $('lbImg');
+    im.src = lbList[lbIdx];
+    im.alt = 'Photo ' + (lbIdx + 1) + ' of ' + n;
+    $('lbCount').textContent = (lbIdx + 1) + ' / ' + n;
+    $('lbPrev').style.display = n > 1 ? 'flex' : 'none';
+    $('lbNext').style.display = n > 1 ? 'flex' : 'none';
+    lbZoom(false);
+  }
+  function lbZoom(on) {
+    var box = $('lbBox');
+    box.className = 'lbbox' + (on ? ' zoomed' : '');
+    box.scrollTop = 0; box.scrollLeft = 0;
+    $('lbZoomBtn').innerHTML = on ? icon('zoomout', 18) + '<span class="lbl"> Zoom out</span>' : icon('zoomin', 18) + '<span class="lbl"> Zoom in</span>';
+    $('lbZoomBtn').setAttribute('aria-label', on ? 'Zoom out' : 'Zoom in');
+  }
+  function lbOpen(list, idx) {
+    if (!list || !list.length) { return; }
+    lbList = list; lbIdx = idx >= 0 && idx < list.length ? idx : 0;
+    $('lbBg').className = 'lb show';
+    lbShow();
+  }
+  function lbClose() { $('lbBg').className = 'lb'; $('lbImg').removeAttribute('src'); }
+  function lbStep(d) { if (lbList.length < 2) { return; } lbIdx = (lbIdx + d + lbList.length) % lbList.length; lbShow(); }
+  function lbOpen_() { return $('lbBg').className.indexOf('show') > -1; }
   function gps() {
     if (!navigator.geolocation) { alert('Location is not available on this device.'); return; }
     $('rLoc').textContent = 'Finding your location...';
@@ -776,13 +865,14 @@
   function cloudBuild() {
     var out = [];
     each(cloudRaw, function (d) {
-      var obs = [], img = '';
+      var obs = [], imgs = [], jpegRe = /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/;
       if (!/^[A-Za-z0-9_-]{1,40}$/.test(d._id)) { return; }
       if (!TYPES.hasOwnProperty(d.type) || typeof d.lat !== 'number' || typeof d.lng !== 'number' || typeof d.time !== 'number' || !isFinite(d.lat) || !isFinite(d.lng) || !isFinite(d.time)) { return; }
       if (typeof d.sev !== 'number' || d.sev < 0 || d.sev > 3 || d.sev !== Math.floor(d.sev)) { return; }
       if (d.obs && d.obs.length) { each(d.obs.slice(0, 12), function (o) { if (o && o.k != null) { obs.push([String(o.k).substring(0, 80), String(o.v).substring(0, 200)]); } }); }
-      if (typeof d.img === 'string' && d.img.length < 400000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(d.img)) { img = d.img; }
-      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!(CLOUD.admin || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : 'Community report', pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: img, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
+      if (d.imgs && d.imgs.length) { each(d.imgs.slice(0, MAXPHOTOS), function (s) { if (typeof s === 'string' && s.length < 230000 && jpegRe.test(s)) { imgs.push(s); } }); }
+      if (!imgs.length && typeof d.img === 'string' && d.img.length < 400000 && jpegRe.test(d.img)) { imgs.push(d.img); }
+      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!(CLOUD.admin || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : 'Community report', pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
     });
     cloudItems = out;
   }
@@ -861,11 +951,11 @@
   }
   function csvCell(v) { var q = String(v == null ? '' : v).replace(/\r?\n/g, ' '); if (/^[=+\-@\t]/.test(q)) { q = "'" + q; } return '"' + q.replace(/"/g, '""') + '"'; }
   function exportCsv() {
-    var rows = [['id', 'posted_pht', 'type', 'severity', 'status', 'verified', 'title', 'place', 'latitude', 'longitude', 'description', 'observations', 'has_photo', 'flags']], lines = [], blob, a;
+    var rows = [['id', 'posted_pht', 'type', 'severity', 'status', 'verified', 'title', 'place', 'latitude', 'longitude', 'description', 'observations', 'photo_count', 'flags']], lines = [], blob, a;
     each(cloudItems, function (r) {
       var o = [];
       each(r.obs, function (p) { o.push(p[0] + ': ' + p[1]); });
-      rows.push([r.cid, fmtFull(r.time), TYPES[r.type].label, SEV[r.sev], r.resolved ? 'Resolved' : 'Active', r.trust === 'verified' ? 'Yes' : 'No', r.title, r.place, r.lat, r.lng, r.desc, o.join('; '), r.img ? 'Yes' : 'No', flagsFor(r.cid).length]);
+      rows.push([r.cid, fmtFull(r.time), TYPES[r.type].label, SEV[r.sev], r.resolved ? 'Resolved' : 'Active', r.trust === 'verified' ? 'Yes' : 'No', r.title, r.place, r.lat, r.lng, r.desc, o.join('; '), photosOf(r).length, flagsFor(r.cid).length]);
     });
     each(rows, function (row) { var c = []; each(row, function (x) { c.push(csvCell(x)); }); lines.push(c.join(',')); });
     blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -893,8 +983,11 @@
     if (t === 'fire') { if ($('rBurn').value) { obs.push(['Burning for', $('rBurn').value + ' hours']); } if ($('rStruct').value) { obs.push(['Structures affected', $('rStruct').value]); } }
     if (t === 'quake') { e = getChecks('efx'); if (e.length) { obs.push(['Effects', e.join(', ')]); } }
     if (t === 'volcano') { obs.push(['Ashfall', $('rAsh').value]); o = getChecks('obs'); if (o.length) { obs.push(['Observed', o.join(', ')]); } }
+    if (t === 'typhoon') { obs.push(['Wind', $('rWind').value]); obs.push(['Rain', $('rRain').value]); o = getChecks('tobs'); if (o.length) { obs.push(['Observed', o.join(', ')]); } }
+    if (t === 'landslide') { obs.push(['Cause', $('rCause').value]); o = getChecks('lobs'); if (o.length) { obs.push(['Observed', o.join(', ')]); } }
     if ($('rEvac').value) { obs.push(['Evacuation', $('rEvac').value]); }
-    it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImg, obsTitle: 'Observations', obs: obs };
+    if (photoBusy > 0) { alert('Your photos are still being prepared. Please try again in a moment.'); return; }
+    it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImgs[0] || '', imgs: pendImgs.slice(0, MAXPHOTOS), obsTitle: 'Observations', obs: obs };
     if (cloudOn() && CLOUD.uid) {
       if (Date.now() - lastPostAt < 120000) { alert('Please wait ' + Math.ceil((120000 - (Date.now() - lastPostAt)) / 1000) + ' seconds before posting another report.'); return; }
       it.id = 'c' + CLOUD.add(it, postFail);
@@ -908,9 +1001,9 @@
     if (cloudOn()) { toast('Not connected yet, saved on this device only'); }
     userItems.unshift(it);
     if (!lsSet('datasaster_reports', userItems)) {
-      it.img = '';
+      it.img = ''; it.imgs = [];
       if (!lsSet('datasaster_reports', userItems)) { userItems.shift(); alert('Could not save. Storage is full.'); return; }
-      alert('Saved without the photo (storage is almost full).');
+      alert('Saved without the photos (storage is almost full).');
     }
     closeReport();
     tf = 'all'; trF = 'all'; sevF = -1; statusF = 'active'; query = ''; $('q').value = ''; $('sevSel').value = '-1'; $('statusSel').value = 'active';
@@ -1033,7 +1126,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1076,6 +1169,12 @@
       else { window.prompt('Copy this link', url); }
       return;
     }
+    if (n === 'data-photo') {
+      var pi = v.lastIndexOf('#'), pr = byId(v.substring(0, pi));
+      if (pr) { lbOpen(photosOf(pr), parseInt(v.substring(pi + 1), 10) || 0); }
+      return;
+    }
+    if (n === 'data-pdel') { var di = parseInt(v, 10); if (di >= 0 && di < pendImgs.length) { pendImgs.splice(di, 1); renderPrevs(); } return; }
     if (n === 'data-export') { if (CLOUD.admin) { exportCsv(); } return; }
     if (n === 'data-flagopen') { showView('dash'); select(v, true); openDetail(v); return; }
     if (n === 'data-flagdismiss') { CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
@@ -1122,7 +1221,15 @@
     if (k === 'refresh') { settings.refresh = parseInt(el.value, 10); applyTheme(); }
     saveSettings();
   });
-  document.addEventListener('keydown', function (e) { if (e.keyCode === 27) { $('detailBg').className = 'bg'; if (viewing === 'settings') { showView('dash'); } closeReport(); endPick(); } });
+  document.addEventListener('keydown', function (e) {
+    if (lbOpen_()) {
+      if (e.keyCode === 27) { lbClose(); return; }
+      if (e.keyCode === 37) { lbStep(-1); return; }
+      if (e.keyCode === 39) { lbStep(1); return; }
+      return;
+    }
+    if (e.keyCode === 27) { $('detailBg').className = 'bg'; if (viewing === 'settings') { showView('dash'); } closeReport(); endPick(); }
+  });
   function bgClose(id, fn) { $(id).addEventListener('mousedown', function (e) { if (e.target === $(id)) { fn(); } }); }
 
   function start() {
@@ -1170,6 +1277,14 @@
     $('rType').addEventListener('change', rTypeChanged); $('rSev').addEventListener('change', rSevHelp);
     $('rDepth').addEventListener('input', function () { var v = parseFloat(this.value), cm; if (isNaN(v)) { return; } cm = $('rUnit').value === 'm' ? v * 100 : v; $('rSev').value = String(cm < 25 ? 0 : (cm < 60 ? 1 : (cm < 110 ? 2 : 3))); rSevHelp(); });
     $('rPhoto').addEventListener('change', onPhoto);
+    renderPrevs();
+    $('lbClose').innerHTML = icon('x', 20); $('lbPrev').innerHTML = icon('left', 24); $('lbNext').innerHTML = icon('right', 24);
+    $('lbClose').addEventListener('click', lbClose);
+    $('lbPrev').addEventListener('click', function () { lbStep(-1); });
+    $('lbNext').addEventListener('click', function () { lbStep(1); });
+    $('lbZoomBtn').addEventListener('click', function () { lbZoom($('lbBox').className.indexOf('zoomed') < 0); });
+    $('lbImg').addEventListener('click', function () { lbZoom($('lbBox').className.indexOf('zoomed') < 0); });
+    $('lbBg').addEventListener('mousedown', function (e) { if (e.target === $('lbBg') || e.target === $('lbBox')) { lbClose(); } });
     $('rPick').addEventListener('click', function () { picking = true; $('reportBg').className = 'bg'; $('pickbar').style.display = 'block'; });
     $('rGps').addEventListener('click', gps);
     $('pickCancel').addEventListener('click', function () { endPick(); openReport(true); });

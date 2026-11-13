@@ -47,7 +47,7 @@
     for (i = 0; i < it.obs.length; i++) { obs.push({ k: String(it.obs[i][0]), v: String(it.obs[i][1]) }); }
     batch.set(ref, {
       uid: C.uid, type: it.type, sev: it.sev, title: it.title, desc: it.desc, place: it.place,
-      lat: it.lat, lng: it.lng, img: it.img || '', obs: obs, time: it.time, resolved: false, resAt: 0, verified: false
+      lat: it.lat, lng: it.lng, img: '', imgs: (it.imgs || []).slice(0, 3), obs: obs, time: it.time, resolved: false, resAt: 0, verified: false
     });
     batch.set(db.collection('users').doc(C.uid), { lastPost: firebase.firestore.FieldValue.serverTimestamp() });
     batch.commit().catch(function (er) { fail(er); });
