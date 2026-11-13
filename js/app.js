@@ -792,6 +792,12 @@
     if ($('detailBg').className.indexOf('show') > -1 && detailId) { if (byId(detailId)) { openDetail(detailId); } else { $('detailBg').className = 'bg'; } }
   }
   function cloudFail(er) { toast(er && er.code === 'permission-denied' ? 'Not allowed. Posting is limited to one report per 2 minutes.' : 'Could not reach the server'); }
+  function postFail(er) {
+    var c = er && er.code ? er.code : '';
+    lastPostAt = 0; lsSet('datasaster_lastpost', 0);
+    if (c === 'permission-denied') { alert('The server rejected your report, so it was not posted.\n\nCheck in Firebase that: (1) the latest firestore.rules are published, (2) Anonymous sign-in is enabled, (3) App Check is not enforced before it is set up. If you posted less than 2 minutes ago, wait and try again.'); }
+    else { alert('Could not post the report: ' + (c || (er && er.message) || 'unknown error')); }
+  }
   function myCloud() { return cloudItems.filter(function (x) { return x.mine; }); }
   function flagsFor(cid) { return flagList.filter(function (f) { return f.reportId === cid; }); }
   function flagGroups() {
@@ -889,7 +895,7 @@
     it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImg, obsTitle: 'Observations', obs: obs };
     if (cloudOn() && CLOUD.uid) {
       if (Date.now() - lastPostAt < 120000) { alert('Please wait ' + Math.ceil((120000 - (Date.now() - lastPostAt)) / 1000) + ' seconds before posting another report.'); return; }
-      it.id = 'c' + CLOUD.add(it, cloudFail);
+      it.id = 'c' + CLOUD.add(it, postFail);
       lastPostAt = Date.now(); lsSet('datasaster_lastpost', lastPostAt);
       closeReport();
       tf = 'all'; trF = 'all'; sevF = -1; statusF = 'active'; query = ''; $('q').value = ''; $('sevSel').value = '-1'; $('statusSel').value = 'active';
