@@ -268,7 +268,15 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 
 
 /* Header logo icon */
-#logo{display:inline-block;width:38px;height:38px;border-radius:8px;background:url(../icon-192.png) center/cover no-repeat}
+#logo{
+  display:block;
+  flex:0 0 46px;
+  width:46px;
+  min-width:46px;
+  height:46px;
+  border-radius:10px;
+  background:url(../icon-192.png) center/cover no-repeat;
+}
 #logo svg{display:none}
 
 .mk{position:relative}
