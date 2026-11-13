@@ -1,7 +1,7 @@
-var CACHE = 'datasaster-v9';
+var CACHE = 'datasaster-v10';
 var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './css/style.css', './js/data.js', './js/app.js', './lib/leaflet.js', './lib/leaflet.css',
-  './lib/firebase-app-compat.js', './lib/firebase-auth-compat.js', './lib/firebase-firestore-compat.js', './js/firebase-config.js', './js/cloud.js'];
+  './lib/firebase-app-compat.js', './lib/firebase-auth-compat.js', './lib/firebase-firestore-compat.js', './lib/firebase-app-check-compat.js', './js/firebase-config.js', './js/cloud.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); }));
@@ -25,4 +25,12 @@ self.addEventListener('fetch', function (e) {
       return caches.match(req).then(function (r) { return r || caches.match('./index.html'); });
     })
   );
+});
+
+self.addEventListener('notificationclick', function (e) {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window' }).then(function (cs) {
+    if (cs.length) { return cs[0].focus(); }
+    return self.clients.openWindow('./');
+  }));
 });

@@ -1,18 +1,35 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    function userDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+    // One report per 2 minutes per person. The report and users/{uid}.lastPost are written in the same batch.
+    function canPost() {
+      return getAfter(userDoc()).data.lastPost == request.time
+        && (!exists(userDoc()) || request.time > get(userDoc()).data.lastPost + duration.value(2, 'm'));
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
     }
+
+    match /users/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['lastPost'])
+        && request.resource.data.lastPost == request.time;
+    }
+
     match /reports/{id} {
       allow read: if true;
       allow create: if request.auth != null
         && id.matches('[A-Za-z0-9_-]{1,40}')
-        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','obs','time','resolved','resAt'])
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','obs','time','resolved','resAt','verified'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.type in ['flood','fire','quake','volcano']
         && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
@@ -21,12 +38,36 @@ service cloud.firestore {
         && request.resource.data.place is string && request.resource.data.place.size() <= 200
         && request.resource.data.lat is number && request.resource.data.lng is number
         && request.resource.data.time is number
+        && request.resource.data.time <= request.time.toMillis() + 300000
+        && request.resource.data.time >= request.time.toMillis() - 604800000
         && request.resource.data.img is string && request.resource.data.img.size() < 400000
-        && request.resource.data.obs is list && request.resource.data.obs.size() <= 12;
-      allow update: if request.auth != null
-        && (resource.data.uid == request.auth.uid || isAdmin())
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']);
+        && request.resource.data.obs is list && request.resource.data.obs.size() <= 12
+        && request.resource.data.resolved == false
+        && request.resource.data.verified == false
+        && canPost();
+      // Authors can resolve or reopen their own report. Admins can also mark it verified.
+      allow update: if request.auth != null && (
+        (resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']))
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified']))
+      );
       allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    // Visitors can flag a report once; only admins can read or clear flags.
+    match /flags/{flagId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['reportId','uid','reason','time'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.reportId is string
+        && request.resource.data.reportId.matches('[A-Za-z0-9_-]{1,40}')
+        && flagId == request.resource.data.reportId + '_' + request.auth.uid
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
+        && request.resource.data.time is number
+        && exists(/databases/$(database)/documents/reports/$(request.resource.data.reportId));
+      allow delete: if isAdmin();
     }
   }
 }

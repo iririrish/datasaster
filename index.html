@@ -48,9 +48,10 @@
     <div class="fh">
       <div class="search"><span id="icS"></span><input type="text" id="q" placeholder="Search place, title or source"></div>
       <div class="fr">
+        <select id="nearSel"><option value="0">Anywhere</option><option value="5">Within 5 km</option><option value="10">Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option></select>
         <select id="statusSel"><option value="active">Active</option><option value="resolved">Resolved</option><option value="all">All statuses</option></select>
         <select id="sevSel"><option value="-1">Any severity</option><option value="0">Low</option><option value="1">Moderate</option><option value="2">High</option><option value="3">Critical</option></select>
-        <select id="sortSel"><option value="latest">Latest</option><option value="severity">Severity</option></select>
+        <select id="sortSel"><option value="latest">Latest</option><option value="severity">Severity</option><option value="near">Nearest</option></select>
       </div>
       <div class="fsum" id="fsum"></div>
       <div class="fnote" id="fnote"></div>
@@ -78,6 +79,7 @@
 
 <section class="sec" id="contactSec">
   <h2>Emergency contacts</h2>
+  <p class="m" style="margin-bottom:10px">DATAsaster is not an official response channel. Reports posted here are not sent to any agency. In an emergency, call these numbers directly.</p>
   <table><thead><tr><th style="width:26%">Agency</th><th style="width:30%">Call</th><th>Use for</th></tr></thead><tbody id="contacts"></tbody></table>
 </section>
 
@@ -92,6 +94,7 @@
   <div class="modal fl">
     <button class="mx" id="rX" aria-label="Close"></button>
     <h2>Report an incident</h2>
+    <div class="safe"><b>Report safely.</b> Do not enter floodwater, fire, smoke or unstable ground for a photo or a location. Report from a safe distance. In an emergency, call 911 or your local hotline first.</div>
     <div class="hint" id="rHint">Reports are saved on this device and shown as unverified.</div>
     <label class="l">Type</label><select id="rType"></select>
     <label class="l">Severity</label><select id="rSev"></select>
@@ -133,6 +136,7 @@
 <script src="lib/firebase-app-compat.js"></script>
 <script src="lib/firebase-auth-compat.js"></script>
 <script src="lib/firebase-firestore-compat.js"></script>
+<script src="lib/firebase-app-check-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/cloud.js"></script>
 <script src="js/data.js"></script>

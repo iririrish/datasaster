@@ -60,3 +60,24 @@ Without Firebase, reports stay on each phone. To share them with everyone:
 3. **Firestore Database > Start collection** named `admins`. Document ID: paste the UID. Add any field (for example `role` = `admin`). Save.
 4. Re-publish `firestore.rules` (it changed).
 5. In the app: **Settings > Admin**, sign in. Repeat step 2 and 3 for each extra admin.
+
+## New features: setup steps
+
+Re-publish `firestore.rules` first (Firestore Database > Rules > paste > Publish). It now covers the posting limit, verified reports and flags.
+
+### Spam protection
+- **Posting limit:** one report per 2 minutes per person. Enforced by the rules, nothing else to set up.
+- **App Check (blocks bots and copies of your app):**
+  1. Go to google.com/recaptcha/admin, create a **reCAPTCHA v3** site, add `yourname.github.io` as a domain. Copy the **Site key** and **Secret key**.
+  2. Firebase console > **App Check** > **Apps** > your web app > **reCAPTCHA** > paste the **Secret key**, Save.
+  3. Paste the **Site key** into `js/firebase-config.js` as `window.APPCHECK_SITE_KEY = "your site key";` and upload.
+  4. Open the live site and post a test report. In App Check > **APIs** > **Cloud Firestore** you should see verified requests after a few minutes.
+  5. Only then click **Enforce** on Cloud Firestore. Enforcing before step 3 will block your own app.
+
+### Admin tools (Settings > Admin, after signing in)
+- **Mark verified / Remove verified** appears on every shared report.
+- **Flagged reports** lists reports flagged by visitors, with Open, Dismiss and Delete.
+- **Export CSV** downloads the latest 200 shared reports.
+
+### Alerts
+Settings > Alerts. While the app is open, a notice appears when a High or Critical report is posted within the chosen distance. Alerts when the app is closed need Firebase Cloud Functions and the paid Blaze plan, so they are not included.
