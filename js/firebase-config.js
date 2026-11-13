@@ -15,4 +15,4 @@ window.MAPS_EMBED_KEY = "";
 
 /* Optional: reCAPTCHA v3 site key for Firebase App Check (blocks bots and copies of your app).
    Leave empty until you have followed the App Check steps in the README. */
-window.APPCHECK_SITE_KEY = "";
+window.APPCHECK_SITE_KEY = "6LdYCB4uAAAAAAQwACBij3f-UqFq7Hx7vjhZKiXU";
