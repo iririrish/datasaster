@@ -1,4 +1,4 @@
-var CACHE = 'datasaster-v10';
+var CACHE = 'datasaster-v11';
 var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './css/style.css', './js/data.js', './js/app.js', './lib/leaflet.js', './lib/leaflet.css',
   './lib/firebase-app-compat.js', './lib/firebase-auth-compat.js', './lib/firebase-firestore-compat.js', './lib/firebase-app-check-compat.js', './js/firebase-config.js', './js/cloud.js'];

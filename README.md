@@ -81,3 +81,6 @@ Re-publish `firestore.rules` first (Firestore Database > Rules > paste > Publish
 
 ### Alerts
 Settings > Alerts. While the app is open, a notice appears when a High or Critical report is posted within the chosen distance. Alerts when the app is closed need Firebase Cloud Functions and the paid Blaze plan, so they are not included.
+
+### Earthquakes (real and live)
+Earthquakes come from USGS and EMSC (which collects Philippine data), refreshed every minute while the app is open and visible. Sample earthquakes were removed. Settings > Data has a **Smallest earthquake** choice (default M3.0). Official bulletins are still at PHIVOLCS (earthquake.phivolcs.dost.gov.ph), which can differ slightly.
