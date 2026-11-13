@@ -1,7 +1,7 @@
 /* Shared reports through Firebase (Firestore + anonymous sign-in).
    If the config is empty or Firebase failed to load, CLOUD.on stays false and the app works locally. */
 (function () {
-  var C = window.CLOUD = { on: false, uid: '' };
+  var C = window.CLOUD = { on: false, uid: '', admin: false, email: '' };
   var cfg = window.FIREBASE_CONFIG, db, auth;
   if (!cfg || !cfg.apiKey || !window.firebase) { return; }
   try {
@@ -14,7 +14,13 @@
 
   C.start = function (onData, onAuth, onErr) {
     auth.onAuthStateChanged(function (u) {
-      if (u) { C.uid = u.uid; onAuth(); }
+      if (u) {
+        C.uid = u.uid; C.email = u.isAnonymous ? '' : (u.email || ''); C.admin = false;
+        onAuth();
+        if (!u.isAnonymous) {
+          db.collection('admins').doc(u.uid).get().then(function (d) { C.admin = d.exists; onAuth(); }, function () { C.admin = false; onAuth(); });
+        }
+      }
       else { auth.signInAnonymously().catch(function (er) { onErr(er); }); }
     });
     db.collection('reports').orderBy('time', 'desc').limit(200).onSnapshot(function (snap) {
@@ -23,6 +29,11 @@
       onData(list);
     }, function (er) { onErr(er); });
   };
+
+  C.login = function (email, pw, ok, fail) {
+    auth.signInWithEmailAndPassword(email, pw).then(function () { ok(); }, function (er) { fail(er); });
+  };
+  C.logout = function () { auth.signOut(); };
 
   C.add = function (it, fail) {
     var ref = db.collection('reports').doc(), obs = [], i;

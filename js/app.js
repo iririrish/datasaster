@@ -107,7 +107,7 @@
   })();
   function saveSettings() { lsSet('datasaster_settings', settings); }
 
-  var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []);
+  var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []), cloudRaw = [], cloudItems = [], detailId = null;
   var newsItems = [], newsState = 'loading', newsLive = 0, quakeState = '';
   var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '7d', dayVal = '', selId = null, newsF = 'all';
   var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImg = '';
@@ -133,7 +133,7 @@
     var a = [];
     if (settings.demo) { a = a.concat(demo); }
     if (settings.liveQuakes) { a = a.concat(liveQuakes); }
-    a = a.concat(userItems);
+    a = a.concat(cloudItems).concat(userItems);
     return a.filter(function (r) {
       if (!settings.cats[r.type]) { return false; }
       if (r.src && settings.sources[r.src] === false) { return false; }
@@ -480,6 +480,7 @@
   function openDetail(id) {
     var r = byId(id), t, h, rel;
     if (!r) { return; }
+    detailId = id;
     t = TYPES[r.type];
     h = '<button class="mx" data-close="detail" aria-label="Close">' + icon('x') + '</button>';
     h += statusLine(r, t);
@@ -493,7 +494,7 @@
     h += '<div class="acts"><button class="btn primary" data-fly="' + r.id + '">Show on map</button>';
     h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">' + icon('nav', 14) + ' Directions</a>';
     if (r.link) { h += '<a class="btn" target="_blank" rel="noopener" href="' + esc(r.link) + '" style="text-decoration:none;color:inherit">Source page</a>'; }
-    if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button><button class="btn danger" data-del="' + r.id + '">Delete my report</button>'; }
+    if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button><button class="btn danger" data-del="' + r.id + '">' + (r.cloud && !r.mine ? 'Delete report (admin)' : 'Delete my report') + '</button>'; }
     h += '</div>';
     rel = pool().filter(function (x) { return x.id !== r.id && x.type === r.type; }).sort(function (a, b) { return Math.abs(a.lat - r.lat) + Math.abs(a.lng - r.lng) - Math.abs(b.lat - r.lat) - Math.abs(b.lng - r.lng); }).slice(0, 3);
     if (rel.length) { h += '<h3>Nearby of the same type</h3>'; each(rel, function (x) { h += '<button class="rel" data-open="' + x.id + '"><span><span class="dot" style="--c:' + SEVCOL[x.sev] + '"></span>' + esc(x.title) + '</span><span class="m">' + ago(x.time) + '</span></button>'; }); }
@@ -656,6 +657,34 @@
     navigator.geolocation.getCurrentPosition(function (p) { setPending(p.coords.latitude, p.coords.longitude); if (map) { map.setView([p.coords.latitude, p.coords.longitude], 12); } },
       function () { $('rLoc').textContent = 'Could not get your location. Use Pick on map.'; }, { enableHighAccuracy: true, timeout: 15000 });
   }
+  /* ---------- shared reports (Firebase) ---------- */
+  function cloudOn() { return !!(window.CLOUD && window.CLOUD.on); }
+  function cloudBuild() {
+    var out = [];
+    each(cloudRaw, function (d) {
+      var obs = [], img = '';
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(d._id)) { return; }
+      if (!TYPES.hasOwnProperty(d.type) || typeof d.lat !== 'number' || typeof d.lng !== 'number' || typeof d.time !== 'number' || !isFinite(d.lat) || !isFinite(d.lng) || !isFinite(d.time)) { return; }
+      if (typeof d.sev !== 'number' || d.sev < 0 || d.sev > 3 || d.sev !== Math.floor(d.sev)) { return; }
+      if (d.obs && d.obs.length) { each(d.obs.slice(0, 12), function (o) { if (o && o.k != null) { obs.push([String(o.k).substring(0, 80), String(o.v).substring(0, 200)]); } }); }
+      if (typeof d.img === 'string' && d.img.length < 400000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(d.img)) { img = d.img; }
+      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!(CLOUD.admin || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: 'unverified', srcLabel: 'Community report', time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: img, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
+    });
+    cloudItems = out;
+  }
+  function cloudRefresh() {
+    cloudBuild(); refresh();
+    if (viewing === 'settings' && !(document.activeElement && document.activeElement.tagName === 'INPUT')) { renderSettings(); }
+    if ($('detailBg').className.indexOf('show') > -1 && detailId) { if (byId(detailId)) { openDetail(detailId); } else { $('detailBg').className = 'bg'; } }
+  }
+  function cloudFail(er) { toast(er && er.code === 'permission-denied' ? 'Not allowed by the server' : 'Could not reach the server'); }
+  function myCloud() { return cloudItems.filter(function (x) { return x.mine; }); }
+  function initCloud() {
+    if (!cloudOn()) { return; }
+    $('rHint').textContent = 'Reports are shared with everyone who opens this app and shown as unverified.';
+    CLOUD.start(function (list) { cloudRaw = list; cloudRefresh(); }, cloudRefresh, function () { toast('Shared reports are unavailable right now'); });
+  }
+
   function saveReport() {
     var t = $('rType').value, obs = [], title = $('rTitle').value.replace(/^\s+|\s+$/g, ''), it, e, o;
     if (pendLat === null) { alert('Please set a location first.'); return; }
@@ -670,6 +699,15 @@
     if (t === 'volcano') { obs.push(['Ashfall', $('rAsh').value]); o = getChecks('obs'); if (o.length) { obs.push(['Observed', o.join(', ')]); } }
     if ($('rEvac').value) { obs.push(['Evacuation', $('rEvac').value]); }
     it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImg, obsTitle: 'Observations', obs: obs };
+    if (cloudOn() && CLOUD.uid) {
+      it.id = 'c' + CLOUD.add(it, cloudFail);
+      closeReport();
+      tf = 'all'; trF = 'all'; sevF = -1; statusF = 'active'; query = ''; $('q').value = ''; $('sevSel').value = '-1'; $('statusSel').value = 'active';
+      selId = it.id; if (map) { map.setView([it.lat, it.lng], 10); }
+      toast('Report shared');
+      return;
+    }
+    if (cloudOn()) { toast('Not connected yet, saved on this device only'); }
     userItems.unshift(it);
     if (!lsSet('datasaster_reports', userItems)) {
       it.img = '';
@@ -683,13 +721,17 @@
     toast('Report added');
   }
   function toggleResolved(id) {
+    var c = cloudById(id);
+    if (c) { CLOUD.setResolved(c.cid, !c.resolved, cloudFail); toast(c.resolved ? 'Reopened' : 'Marked as resolved'); return; }
     each(userItems, function (u) { if (u.id === id) { u.resolved = !u.resolved; u.resAt = u.resolved ? Date.now() : 0; toast(u.resolved ? 'Marked as resolved' : 'Reopened'); } });
     lsSet('datasaster_reports', userItems);
     refresh(); openDetail(id);
   }
+  function cloudById(id) { var i; for (i = 0; i < cloudItems.length; i++) { if (cloudItems[i].id === id && cloudItems[i].own) { return cloudItems[i]; } } return null; }
   function deleteReport(id) {
-    var keep = [];
+    var keep = [], c = cloudById(id);
     if (!window.confirm('Delete this report?')) { return; }
+    if (c) { CLOUD.remove(c.cid, cloudFail); $('detailBg').className = 'bg'; if (selId === id) { selId = null; } toast('Report deleted'); return; }
     each(userItems, function (x) { if (x.id !== id) { keep.push(x); } });
     userItems = keep; lsSet('datasaster_reports', userItems);
     $('detailBg').className = 'bg'; if (selId === id) { selId = null; }
@@ -729,7 +771,15 @@
     b += '<div class="trow"><div><b>Auto refresh</b></div><select data-sel="refresh"><option value="0"' + (s.refresh == 0 ? ' selected' : '') + '>Off</option><option value="5"' + (s.refresh == 5 ? ' selected' : '') + '>Every 5 minutes</option><option value="15"' + (s.refresh == 15 ? ' selected' : '') + '>Every 15 minutes</option></select></div>';
     b += '<div class="trow"><div><b>Install app</b><small>' + (deferredPrompt ? 'Add DATAsaster to your home screen.' : 'iPhone: Share, then Add to Home Screen. Android or desktop: use Install in the browser menu.') + '</small></div>' + (deferredPrompt ? '<button class="btn sm" data-install="1">Install</button>' : '') + '</div>';
     h += sect('refresh', 'Data', 'What is loaded and how often.', b);
-    h += '<div class="sv-foot"><button class="btn" data-clearmine="1">Delete my reports (' + userItems.length + ')</button><button class="btn danger" data-reset="1">Reset to defaults</button></div>';
+    if (cloudOn()) {
+      if (CLOUD.email) {
+        b = '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + (CLOUD.admin ? 'Admin: you can resolve and delete any shared report.' : 'Signed in, but this account is not an admin.') + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>';
+      } else {
+        b = '<div class="trow"><input type="text" id="adEmail" placeholder="Admin email" autocomplete="username" style="flex:1"></div><div class="trow"><input type="password" id="adPw" placeholder="Password" autocomplete="current-password" style="flex:1"><button class="btn sm primary" data-adminlogin="1">Sign in</button></div>';
+      }
+      h += sect('alert', 'Admin', 'For moderators only. Everyone else is signed in automatically.', b);
+    }
+    h += '<div class="sv-foot"><button class="btn" data-clearmine="1">Delete my reports (' + (userItems.length + myCloud().length) + ')</button><button class="btn danger" data-reset="1">Reset to defaults</button></div>';
     $('viewSettings').innerHTML = h;
   }
   function showView(v) {
@@ -769,7 +819,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -782,6 +832,13 @@
     var a = findAction(e.target), n, v, parts;
     if (!a) { if (panelOpen && !$('lpanel').contains(e.target) && e.target !== $('btnLayers') && !$('btnLayers').contains(e.target)) { panelOpen = false; $('lpanel').hidden = true; } return; }
     n = a[0]; v = a[1];
+    if (n === 'data-adminlogin') {
+      var em = $('adEmail').value.replace(/^\s+|\s+$/g, ''), pw = $('adPw').value;
+      if (!em || !pw) { toast('Enter email and password'); return; }
+      CLOUD.login(em, pw, function () { toast('Signed in'); }, function () { toast('Wrong email or password'); });
+      return;
+    }
+    if (n === 'data-adminout') { CLOUD.logout(); toast('Signed out'); return; }
     if (n === 'data-tf') { tf = v; selId = null; refresh(); return; }
     if (n === 'data-tr') { trF = (trF === v) ? 'all' : v; refresh(); return; }
     if (n === 'data-open') { e.stopPropagation(); select(v, true); openDetail(v); return; }
@@ -811,7 +868,7 @@
       if (v === 'liveNews' || (parts[0] === 'src' && NEWS_KEYS.indexOf(parts[1]) >= 0)) { loadNews(); }
       return;
     }
-    if (n === 'data-clearmine') { if (window.confirm('Delete all reports saved on this device?')) { userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
+    if (n === 'data-clearmine') { if (window.confirm('Delete all your reports?')) { each(myCloud(), function (x) { CLOUD.remove(x.cid, cloudFail); }); userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
     if (n === 'data-reset') { if (window.confirm('Reset all settings to defaults?')) { settings = clone(DEFAULTS); saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); applyLayers(); renderSettings(); refresh(); loadQuakes(); loadNews(); } return; }
   });
   document.addEventListener('change', function (e) {
@@ -867,6 +924,7 @@
     tick(); setInterval(tick, 1000);
     window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } });
     initApp();
+    initCloud();
     loadQuakes(); loadNews();
   }
   start();
