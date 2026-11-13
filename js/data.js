@@ -5,7 +5,7 @@
 
 var SRC = {
   pagasa: { name: 'PAGASA', kind: 'official' }, phivolcs: { name: 'PHIVOLCS', kind: 'official' },
-  ndrrmc: { name: 'NDRRMC', kind: 'official' }, bfp: { name: 'BFP', kind: 'official' }, usgs: { name: 'USGS', kind: 'official' },
+  ndrrmc: { name: 'NDRRMC', kind: 'official' }, bfp: { name: 'BFP', kind: 'official' }, usgs: { name: 'USGS', kind: 'official' }, emsc: { name: 'EMSC', kind: 'official' },
   abs: { name: 'ABS-CBN News', kind: 'news', site: 'abs-cbn.com', url: 'https://www.abs-cbn.com/news' },
   gma: { name: 'GMA News', kind: 'news', site: 'gmanetwork.com', url: 'https://www.gmanetwork.com/news/' },
   rappler: { name: 'Rappler', kind: 'news', site: 'rappler.com', url: 'https://www.rappler.com/' },
@@ -16,7 +16,7 @@ var SRC = {
 
 var NEWS_KEYS = ['abs', 'gma', 'rappler', 'inquirer', 'philstar', 'mb'];
 
-var SRC_KEYS = ['pagasa', 'phivolcs', 'ndrrmc', 'bfp', 'usgs'].concat(NEWS_KEYS);
+var SRC_KEYS = ['pagasa', 'phivolcs', 'ndrrmc', 'bfp', 'usgs', 'emsc'].concat(NEWS_KEYS);
 
 var LAYERS = [
   ['radar', 'Rain radar', 'RainViewer'],

@@ -92,7 +92,7 @@
   var VOLC_OBS = ['Steam or plume visible', 'Rumbling or explosions heard', 'Sulfur smell', 'Lava or glow seen', 'Roads or crops covered in ash'];
 
   /* ---------- state ---------- */
-  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
   SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var settings = clone(DEFAULTS);
@@ -121,6 +121,7 @@
     demo = [];
     each(SEED, function (r, i) {
       var o = {}, k;
+      if (r.type === 'quake') { return; }
       for (k in r) { if (r.hasOwnProperty(k)) { o[k] = r[k]; } }
       o.id = 'd' + i; o.demo = true; o.time = now - r.h * 3600000; o.prov = '';
       if (r.resolved) { o.resAt = now - r.resH * 3600000; }
@@ -139,6 +140,7 @@
     return a.filter(function (r) {
       if (!settings.cats[r.type]) { return false; }
       if (r.src && settings.sources[r.src] === false) { return false; }
+      if (r.live && r.mag < settings.minMag) { return false; }
       if (r.trust === 'unverified' && !settings.showUnverified) { return false; }
       return true;
     });
@@ -250,6 +252,8 @@
     var resHidden = statusF === 'active' ? pool().filter(function (r) { return r.resolved && match(r, { noStatus: true }); }).length : 0;
     if (resHidden > 0) { note += ' \u00b7 ' + resHidden + ' resolved hidden <button data-showres="1">Show</button>'; }
     if (quakeState === 'unavailable') { note += ' \u00b7 Live earthquakes unavailable'; }
+    else if (quakeState === 'stale') { note += ' \u00b7 Showing saved earthquakes'; }
+    else if (quakeState === 'ok' && settings.liveQuakes) { note += ' \u00b7 Earthquakes live \u00b7 ' + quakeStamp.toLowerCase(); }
     $('fnote').innerHTML = note;
   }
 
@@ -505,7 +509,7 @@
   /* ---------- detail ---------- */
   function noteFor(r) {
     if (r.cloud && r.trust === 'verified') { return 'Community report reviewed by a DATAsaster admin. Still not an official agency record.'; }
-    if (r.live) { return 'Instrument data from the USGS catalogue. PHIVOLCS publishes the official Philippine bulletin, which may differ slightly.'; }
+    if (r.live) { return 'Instrument data from ' + r.srcLabel + '. PHIVOLCS publishes the official Philippine bulletin, which may differ slightly.'; }
     if (r.trust === 'official') { return 'Sample record modelled on an agency bulletin. For real warnings, use the agency website.'; }
     if (r.trust === 'news') { return 'Sample record modelled on a news report. Real headlines are listed under Latest headlines.'; }
     if (r.trust === 'verified') { return 'Sample of a report checked against a responder or barangay update.'; }
@@ -612,18 +616,82 @@
   }
 
   /* ---------- live earthquakes ---------- */
+  /* Earthquakes: USGS and EMSC, polled every minute while the app is visible. */
+  var quakeBusy = false, quakeAt = 0, quakeStamp = '', knownQuakes = null;
+  function quakeSev(m) { return m < 5 ? 0 : (m < 5.8 ? 1 : (m < 6.5 ? 2 : 3)); }
+  function titleCase(t) { return String(t || '').toLowerCase().replace(/(^|[\s,\-(])([a-z])/g, function (x, p, c) { return p + c.toUpperCase(); }); }
+  function quakeItem(o) {
+    var m = o.mag, lines = [['Magnitude', m.toFixed(1) + (o.magType ? ' (' + o.magType + ')' : '')], ['Depth', o.depth != null ? Math.round(o.depth) + ' km' : 'n/a'], ['Epicenter', o.lat.toFixed(2) + ', ' + o.lng.toFixed(2)]];
+    if (o.status) { lines.push(['Review status', o.status]); }
+    if (o.felt) { lines.push(['Felt reports', String(o.felt)]); }
+    if (o.also) { lines.push(['Also reported by', o.also]); }
+    return { id: o.id, live: true, type: 'quake', mag: m, sev: quakeSev(m), trust: 'official', src: o.src, srcLabel: o.label, time: o.time, title: 'M' + m.toFixed(1) + ' ' + o.place, desc: 'Instrument-recorded event from the ' + o.label + ' catalogue.', place: o.place, lat: o.lat, lng: o.lng, link: o.link, obsTitle: 'Official parameters (' + o.label + ')', lines: lines };
+  }
+  function quakeBuild(raw) { var out = []; each(raw, function (o) { out.push(quakeItem(o)); }); return out; }
+  function quakeMerge(usgs, emsc) {
+    var out = usgs.slice();
+    each(emsc, function (e) {
+      var dup = null;
+      each(usgs, function (u) { if (!dup && Math.abs(u.time - e.time) < 120000 && distKm(u.lat, u.lng, e.lat, e.lng) < 150) { dup = u; } });
+      if (dup) { dup.also = 'EMSC'; } else { out.push(e); }
+    });
+    out.sort(function (a, b) { return b.time - a.time; });
+    return out;
+  }
+  function quakeNew(items) {
+    var n = 0, big = null;
+    if (knownQuakes === null) { knownQuakes = {}; each(items, function (q) { knownQuakes[q.id] = true; }); return; }
+    each(items, function (q) {
+      if (knownQuakes[q.id]) { return; }
+      knownQuakes[q.id] = true;
+      if (q.mag >= 4.5 && q.time > Date.now() - 6 * 3600000) { n++; if (!big || q.mag > big.mag) { big = q; } }
+    });
+    if (big) { notify(n > 1 ? n + ' new earthquakes, strongest M' + big.mag.toFixed(1) + ' ' + big.place : 'New earthquake: M' + big.mag.toFixed(1) + ' ' + big.place); }
+  }
   function loadQuakes() {
-    var start;
+    var res = { usgs: null, emsc: null }, pending = 2, d0, start, startT;
     if (!settings.liveQuakes) { liveQuakes = []; quakeState = ''; refresh(); return; }
-    start = new Date(Date.now() - 30 * 86400000).toISOString().substring(0, 10);
-    xhr('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=4&maxlatitude=22&minlongitude=116&maxlongitude=128&minmagnitude=4.5&orderby=time&limit=80&starttime=' + start, function (d) {
-      liveQuakes = [];
+    if (quakeBusy) { return; }
+    quakeBusy = true;
+    d0 = new Date(Date.now() - 30 * 86400000);
+    start = d0.toISOString().substring(0, 10);
+    startT = d0.toISOString().substring(0, 19);
+    function done() {
+      var items;
+      pending--;
+      if (pending > 0) { return; }
+      quakeBusy = false;
+      if (res.usgs === null && res.emsc === null) { quakeState = liveQuakes.length ? 'stale' : 'unavailable'; refresh(); return; }
+      var raw = quakeMerge(res.usgs || [], res.emsc || []);
+      items = quakeBuild(raw);
+      quakeNew(items);
+      liveQuakes = items; quakeState = 'ok'; quakeAt = Date.now(); quakeStamp = stamp();
+      lsSet('datasaster_quakes', { t: quakeAt, list: raw.slice(0, 250) });
+      refresh();
+    }
+    xhr('https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&minlatitude=4&maxlatitude=22&minlongitude=116&maxlongitude=128&minmagnitude=2.5&orderby=time&limit=300&starttime=' + start, function (d) {
+      var out = [];
       each(d.features || [], function (f) {
-        var p = f.properties, c = f.geometry.coordinates, m = p.mag == null ? 0 : p.mag, sev = m < 5 ? 0 : (m < 5.8 ? 1 : (m < 6.5 ? 2 : 3));
-        liveQuakes.push({ id: 'q' + f.id, live: true, type: 'quake', sev: sev, trust: 'official', src: 'usgs', srcLabel: 'USGS', time: p.time, title: 'M' + m.toFixed(1) + ' ' + (p.place || 'Earthquake'), desc: 'Instrument-recorded event from the USGS catalogue.', place: p.place || 'Philippines', lat: c[1], lng: c[0], link: p.url, obsTitle: 'Official parameters (USGS)', lines: [['Magnitude', m.toFixed(1) + (p.magType ? ' (' + p.magType + ')' : '')], ['Depth', c[2] != null ? Math.round(c[2]) + ' km' : 'n/a'], ['Epicenter', c[1].toFixed(2) + ', ' + c[0].toFixed(2)], ['Review status', p.status || 'n/a'], ['Felt reports', p.felt ? String(p.felt) : 'None reported to USGS']] });
+        var p = f.properties, c = f.geometry.coordinates;
+        if (p.mag == null) { return; }
+        out.push({ id: 'q' + f.id, src: 'usgs', label: 'USGS', time: p.time, mag: p.mag, magType: p.magType || '', depth: c[2], lat: c[1], lng: c[0], place: p.place || 'Philippines', link: p.url, status: p.status || '', felt: p.felt || 0 });
       });
-      quakeState = 'ok'; refresh();
-    }, function () { liveQuakes = []; quakeState = 'unavailable'; refresh(); });
+      res.usgs = out; done();
+    }, function () { res.usgs = null; done(); });
+    xhr('https://www.seismicportal.eu/fdsnws/event/1/query?format=json&minlatitude=4&maxlatitude=22&minlongitude=116&maxlongitude=128&minmagnitude=2.5&orderby=time&limit=400&starttime=' + startT, function (d) {
+      var out = [];
+      each(d.features || [], function (f) {
+        var p = f.properties || {}, t = Date.parse(p.time), lat = typeof p.lat === 'number' ? p.lat : f.geometry.coordinates[1], lng = typeof p.lon === 'number' ? p.lon : f.geometry.coordinates[0];
+        if (typeof p.mag !== 'number' || isNaN(t) || typeof lat !== 'number' || typeof lng !== 'number') { return; }
+        out.push({ id: 'e' + String(p.source_id || p.unid || f.id), src: 'emsc', label: 'EMSC', time: t, mag: p.mag, magType: p.magtype || '', depth: typeof p.depth === 'number' ? Math.abs(p.depth) : null, lat: lat, lng: lng, place: titleCase(p.flynn_region) || 'Philippines', link: 'https://www.emsc-csem.org/Earthquake_information/earthquake.php?id=' + encodeURIComponent(String(p.source_id || p.unid || '')), status: p.auth ? 'Contributed by ' + p.auth : '', felt: 0 });
+      });
+      res.emsc = out; done();
+    }, function () { res.emsc = null; done(); });
+  }
+  function loadQuakeCache() {
+    var c = lsGet('datasaster_quakes', null);
+    if (!settings.liveQuakes || !c || !c.list || !c.list.length) { return; }
+    try { liveQuakes = quakeBuild(c.list); quakeState = 'stale'; knownQuakes = {}; each(liveQuakes, function (q) { knownQuakes[q.id] = true; }); } catch (e) { liveQuakes = []; }
   }
 
   /* ---------- contacts ---------- */
@@ -886,19 +954,22 @@
     b += '</div>';
     h += sect('radar', 'Sources', 'Agencies and news outlets to include.', b);
     b = trow('demo', 'Sample records', 'Labelled demonstration incidents.', s.demo);
-    b += trow('liveQuakes', 'Live earthquakes', 'USGS, magnitude 4.5 and above.', s.liveQuakes);
+    b += trow('liveQuakes', 'Live earthquakes', 'USGS and EMSC, updated every minute while the app is open.', s.liveQuakes);
+    b += '<div class="trow"><div><b>Smallest earthquake</b></div><select data-sel="minmag">';
+    each([2.5, 3, 4, 4.5, 5], function (mg) { b += '<option value="' + mg + '"' + (s.minMag === mg ? ' selected' : '') + '>M' + mg.toFixed(1) + ' and above</option>'; });
+    b += '</select></div>';
     b += trow('liveNews', 'Live headlines', 'Google News, from the selected outlets.', s.liveNews);
     b += trow('showUnverified', 'Unverified reports', 'Community reports without review.', s.showUnverified);
     b += trow('showPhotos', 'Photos', 'Thumbnails in the feed and details.', s.showPhotos);
     b += '<div class="trow"><div><b>Auto refresh</b></div><select data-sel="refresh"><option value="0"' + (s.refresh == 0 ? ' selected' : '') + '>Off</option><option value="5"' + (s.refresh == 5 ? ' selected' : '') + '>Every 5 minutes</option><option value="15"' + (s.refresh == 15 ? ' selected' : '') + '>Every 15 minutes</option></select></div>';
     b += '<div class="trow"><div><b>Install app</b><small>' + (deferredPrompt ? 'Add DATAsaster to your home screen.' : 'iPhone: Share, then Add to Home Screen. Android or desktop: use Install in the browser menu.') + '</small></div>' + (deferredPrompt ? '<button class="btn sm" data-install="1">Install</button>' : '') + '</div>';
     h += sect('refresh', 'Data', 'What is loaded and how often.', b);
-    if (cloudOn()) {
-      b = trow('alerts', 'Alerts for High and Critical reports', 'Shows a notice while the app is open. Needs location permission.', s.alerts);
+    {
+      b = trow('alerts', 'Alerts', 'Notice and notification while the app is open: new High or Critical shared reports near you, and new earthquakes M4.5 or stronger. Needs location permission.', s.alerts);
       b += '<div class="trow"><div><b>Alert distance</b></div><select data-sel="alertkm">';
       each([10, 25, 50, 100], function (km) { b += '<option value="' + km + '"' + (s.alertKm === km ? ' selected' : '') + '>Within ' + km + ' km</option>'; });
       b += '</select></div>';
-      h += sect('alert', 'Alerts', 'Heads-up for serious shared reports near you.', b);
+      h += sect('alert', 'Alerts', 'Heads-up for serious reports and earthquakes.', b);
     }
     if (cloudOn()) {
       if (CLOUD.email) {
@@ -1038,6 +1109,7 @@
     var el = e.target, k = el.getAttribute ? el.getAttribute('data-sel') : null;
     if (!k) { return; }
     if (k === 'region') { settings.region = el.value; fitRegion(); }
+    if (k === 'minmag') { settings.minMag = parseFloat(el.value); refresh(); }
     if (k === 'alertkm') { settings.alertKm = parseInt(el.value, 10); }
     if (k === 'refresh') { settings.refresh = parseInt(el.value, 10); applyTheme(); }
     saveSettings();
@@ -1098,6 +1170,9 @@
     tick = function () { $('clk').textContent = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit', second: '2-digit' }); };
     tick(); setInterval(tick, 1000);
     window.addEventListener('resize', function () { if (map) { map.invalidateSize(); } });
+    loadQuakeCache(); refresh();
+    setInterval(function () { if (!document.hidden && navigator.onLine !== false) { loadQuakes(); } }, 60000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && Date.now() - quakeAt > 45000) { loadQuakes(); } });
     initApp();
     pendingHash = /^#r=[A-Za-z0-9_-]{1,60}$/.test(location.hash || '') ? location.hash.substring(3) : '';
     if (settings.alerts && cloudOn()) { getPos(function () { refresh(); }); setInterval(function () { getPos(function () {}); }, 600000); }
