@@ -13,6 +13,9 @@ window.FIREBASE_CONFIG = {
    Leave empty to show only the "Street view" link (opens Google Maps). */
 window.MAPS_EMBED_KEY = "";
 
-/* Optional: reCAPTCHA v3 site key for Firebase App Check (blocks bots and copies of your app).
-   Leave empty until you have followed the App Check steps in the README. */
-window.APPCHECK_SITE_KEY = "6LdYCB4uAAAAAAQwACBij3f-UqFq7Hx7vjhZKiXU";
+/* Optional: Firebase App Check (blocks bots and copies of your app).
+   Use ONE of these. Leave both empty until you have followed the App Check steps in the README.
+   Recommended: the reCAPTCHA Enterprise key from Google Cloud > Fraud Defense. */
+window.APPCHECK_ENTERPRISE_KEY = "6Lcn1h0uAAAAADAdKkTrMq5KmutpUeDedr_2UKBp";
+/* Older option: reCAPTCHA v3 (classic) site key. */
+window.APPCHECK_SITE_KEY = "";
