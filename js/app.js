@@ -793,10 +793,12 @@
   }
   function cloudFail(er) { toast(er && er.code === 'permission-denied' ? 'Not allowed. Posting is limited to one report per 2 minutes.' : 'Could not reach the server'); }
   function postFail(er) {
-    var c = er && er.code ? er.code : '';
+    var c = er && er.code ? er.code : '', msg;
     lastPostAt = 0; lsSet('datasaster_lastpost', 0);
-    if (c === 'permission-denied') { alert('The server rejected your report, so it was not posted.\n\nCheck in Firebase that: (1) the latest firestore.rules are published, (2) Anonymous sign-in is enabled, (3) App Check is not enforced before it is set up. If you posted less than 2 minutes ago, wait and try again.'); }
-    else { alert('Could not post the report: ' + (c || (er && er.message) || 'unknown error')); }
+    msg = c === 'permission-denied' ? 'The server rejected your report, so it was not posted.' : 'Could not post the report.';
+    msg += '\n\nError: ' + (c || 'none') + (er && er.message ? ' - ' + er.message : '');
+    if (CLOUD.diagnose) { CLOUD.diagnose(function (txt) { alert(msg + '\n\nChecks:\n' + txt + '\n\nSend this message to the developer.'); }); }
+    else { alert(msg); }
   }
   function myCloud() { return cloudItems.filter(function (x) { return x.mine; }); }
   function flagsFor(cid) { return flagList.filter(function (f) { return f.reportId === cid; }); }
