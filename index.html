@@ -118,9 +118,22 @@
       <label class="l">Ashfall</label><select id="rAsh"><option>No ashfall</option><option>Light ashfall</option><option>Heavy ashfall</option></select>
       <label class="l">Observations</label><div id="obsBox"></div>
     </div>
+    <div id="secTyph">
+      <label class="l">Wind</label>
+      <select id="rWind"><option>Breezy</option><option>Strong winds</option><option>Damaging winds</option><option>Destructive winds</option></select>
+      <label class="l">Rainfall</label>
+      <select id="rRain"><option>Light rain</option><option>Moderate rain</option><option>Heavy rain</option><option>Intense rain</option></select>
+      <label class="l">Observed</label><div id="tobsBox"></div>
+    </div>
+    <div id="secLand">
+      <label class="l">Likely cause</label>
+      <select id="rCause"><option>Heavy rain</option><option>Earthquake</option><option>Not sure</option></select>
+      <label class="l">Observed</label><div id="lobsBox"></div>
+    </div>
     <label class="l">Evacuation</label>
     <select id="rEvac"><option value="">Not needed</option><option>Evacuation needed</option><option>Evacuation ongoing</option></select>
-    <label class="l">Photo</label><input type="file" id="rPhoto" accept="image/*"><img id="rPrev" alt="Photo preview">
+    <label class="l" for="rPhoto">Photos (0 to 3)</label><input type="file" id="rPhoto" accept="image/*" multiple>
+    <div class="hint" id="rPhotoHint" aria-live="polite"></div><div class="prevs" id="rPrevs"></div>
     <label class="l">Location</label>
     <div class="row2"><button class="btn" id="rPick" type="button">Pick on map</button><button class="btn" id="rGps" type="button">Use my location</button></div>
     <div class="hint" id="rLoc">No location set</div>
@@ -128,6 +141,13 @@
     <label class="l">Details</label><textarea id="rDesc"></textarea>
     <div class="acts" style="justify-content:flex-end"><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rSave">Post report</button></div>
   </div>
+</div>
+
+<div class="lb" id="lbBg" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <div class="lbtop"><span id="lbCount" class="lbcount"></span><span class="sp"></span><button type="button" class="lbbtn" id="lbZoomBtn"></button><button type="button" class="lbbtn" id="lbClose" aria-label="Close photo viewer"></button></div>
+  <div class="lbbox" id="lbBox"><img id="lbImg" alt=""></div>
+  <button type="button" class="lbnav l" id="lbPrev" aria-label="Previous photo"></button>
+  <button type="button" class="lbnav r" id="lbNext" aria-label="Next photo"></button>
 </div>
 
 <div class="toast" id="toast"></div>

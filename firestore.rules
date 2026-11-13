@@ -14,6 +14,14 @@ service cloud.firestore {
         && (!exists(userDoc()) || request.time > get(userDoc()).data.lastPost + duration.value(2, 'm'));
     }
 
+    // Up to 3 photos per report, each a small JPEG text string (the app shrinks them to about 200 KB).
+    function photosOk(l) {
+      return l is list && l.size() <= 3
+        && (l.size() < 1 || (l[0] is string && l[0].size() < 230000))
+        && (l.size() < 2 || (l[1] is string && l[1].size() < 230000))
+        && (l.size() < 3 || (l[2] is string && l[2].size() < 230000));
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if false;
@@ -29,18 +37,19 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null
         && id.matches('[A-Za-z0-9_-]{1,40}')
-        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','obs','time','resolved','resAt','verified'])
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified'])
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.type in ['flood','fire','quake','volcano']
+        && request.resource.data.type in ['flood','fire','quake','volcano','typhoon','landslide']
         && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
         && request.resource.data.title is string && request.resource.data.title.size() <= 200
         && request.resource.data.desc is string && request.resource.data.desc.size() <= 2000
         && request.resource.data.place is string && request.resource.data.place.size() <= 200
         && request.resource.data.lat is number && request.resource.data.lng is number
         && request.resource.data.time is number
-        && request.resource.data.time <= request.time.toMillis() + 300000
+        && request.resource.data.time <= request.time.toMillis() + 3600000
         && request.resource.data.time >= request.time.toMillis() - 604800000
-        && request.resource.data.img is string && request.resource.data.img.size() < 400000
+        && request.resource.data.img is string && request.resource.data.img.size() < 230000
+        && photosOk(request.resource.data.get('imgs', []))
         && request.resource.data.obs is list && request.resource.data.obs.size() <= 12
         && request.resource.data.resolved == false
         && request.resource.data.verified == false
