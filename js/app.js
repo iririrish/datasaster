@@ -493,9 +493,11 @@
     h += '<p class="m" style="margin-top:16px">' + noteFor(r) + '</p>';
     h += '<div class="acts"><button class="btn primary" data-fly="' + r.id + '">Show on map</button>';
     h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">' + icon('nav', 14) + ' Directions</a>';
+    h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">Street view</a>';
+    if (window.MAPS_EMBED_KEY) { h += '<button class="btn" data-sv="' + r.id + '">View street here</button>'; }
     if (r.link) { h += '<a class="btn" target="_blank" rel="noopener" href="' + esc(r.link) + '" style="text-decoration:none;color:inherit">Source page</a>'; }
     if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button><button class="btn danger" data-del="' + r.id + '">' + (r.cloud && !r.mine ? 'Delete report (admin)' : 'Delete my report') + '</button>'; }
-    h += '</div>';
+    h += '</div><div id="svBox"></div>';
     rel = pool().filter(function (x) { return x.id !== r.id && x.type === r.type; }).sort(function (a, b) { return Math.abs(a.lat - r.lat) + Math.abs(a.lng - r.lng) - Math.abs(b.lat - r.lat) - Math.abs(b.lng - r.lng); }).slice(0, 3);
     if (rel.length) { h += '<h3>Nearby of the same type</h3>'; each(rel, function (x) { h += '<button class="rel" data-open="' + x.id + '"><span><span class="dot" style="--c:' + SEVCOL[x.sev] + '"></span>' + esc(x.title) + '</span><span class="m">' + ago(x.time) + '</span></button>'; }); }
     $('detailBox').innerHTML = h;
@@ -819,7 +821,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -836,6 +838,11 @@
       var em = $('adEmail').value.replace(/^\s+|\s+$/g, ''), pw = $('adPw').value;
       if (!em || !pw) { toast('Enter email and password'); return; }
       CLOUD.login(em, pw, function () { toast('Signed in'); }, function () { toast('Wrong email or password'); });
+      return;
+    }
+    if (n === 'data-sv') {
+      var sr = byId(v);
+      if (sr && window.MAPS_EMBED_KEY) { $('svBox').innerHTML = '<iframe title="Street view" style="width:100%;height:300px;border:0;border-radius:8px;margin-top:12px" loading="lazy" allowfullscreen src="https://www.google.com/maps/embed/v1/streetview?key=' + encodeURIComponent(window.MAPS_EMBED_KEY) + '&location=' + sr.lat + ',' + sr.lng + '&fov=90"></iframe><div class="m">Needs internet. Street view may be old or missing on some roads.</div>'; }
       return;
     }
     if (n === 'data-adminout') { CLOUD.logout(); toast('Signed out'); return; }
