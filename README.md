@@ -39,3 +39,24 @@ Philippine disaster monitoring: map, live layers, incidents, news and emergency 
 - Header title and tagline: `index.html`, search for `class="brand"`.
 
 Keep the quotes, commas and brackets exactly as they are. If the page goes blank, undo your last change (GitHub keeps every version under **History**).
+
+
+## Shared reports (Firebase)
+
+Without Firebase, reports stay on each phone. To share them with everyone:
+
+1. Go to console.firebase.google.com, **Add project** (Analytics not needed).
+2. **Build > Authentication > Get started > Sign-in method > Anonymous > Enable**.
+3. **Build > Firestore Database > Create database** (production mode, pick `asia-southeast1`).
+4. Firestore **Rules** tab: paste everything from `firestore.rules`, press **Publish**.
+5. **Project settings > Your apps > Web (`</>`)**, register an app, copy the `firebaseConfig` values into `js/firebase-config.js`.
+6. **Authentication > Settings > Authorized domains**: add `yourname.github.io`.
+7. Commit the changes. Everyone who opens the link now sees the same reports. People can only resolve or delete their own.
+
+### Admin account (resolve and delete any report)
+
+1. **Authentication > Sign-in method > Email/Password > Enable**.
+2. **Authentication > Users > Add user**: type the admin email and a password. Copy the **User UID**.
+3. **Firestore Database > Start collection** named `admins`. Document ID: paste the UID. Add any field (for example `role` = `admin`). Save.
+4. Re-publish `firestore.rules` (it changed).
+5. In the app: **Settings > Admin**, sign in. Repeat step 2 and 3 for each extra admin.

@@ -1,6 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
     match /reports/{id} {
       allow read: if true;
       allow create: if request.auth != null
@@ -17,9 +24,9 @@ service cloud.firestore {
         && request.resource.data.img is string && request.resource.data.img.size() < 400000
         && request.resource.data.obs is list && request.resource.data.obs.size() <= 12;
       allow update: if request.auth != null
-        && resource.data.uid == request.auth.uid
+        && (resource.data.uid == request.auth.uid || isAdmin())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']);
-      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
     }
   }
 }
