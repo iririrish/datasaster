@@ -104,7 +104,7 @@
   var MAXPHOTOS = 3, IMG_MAX = 200000;
 
   /* ---------- state ---------- */
-  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false } };
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false, fcmap: false } };
   SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var settings = clone(DEFAULTS);
@@ -117,6 +117,7 @@
       else { settings[k] = s[k]; }
     }
   })();
+  if (typeof LAYERS !== 'undefined' && !LAYERS.some(function (l) { return l[0] === 'fcmap'; })) { LAYERS.push(['fcmap', 'Forecast map', 'Hourly rain and wind forecast with a timeline, next 4 days']); }
   function saveSettings() { lsSet('datasaster_settings', settings); }
 
   var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []), cloudRaw = [], cloudItems = [], detailId = null, userPos = null, nearKm = 0, flagged = lsGet('datasaster_flagged', {}), flagList = [], flagsOn = false, pendingHash = '', firstCloud = true, seenAlert = {}, lastPostAt = lsGet('datasaster_lastpost', 0), GROUP_KM = 1;
@@ -508,7 +509,7 @@
   function applyLayers() {
     var id;
     if (!map) { return; }
-    startRadar(); startCloud();
+    startRadar(); startCloud(); syncFc();
     each(['rain', 'river', 'fire', 'storm'], function (k) {
       var g = group(k);
       if (settings.layers[k]) {
@@ -522,7 +523,7 @@
     renderLegend();
     if (panelOpen) { renderPanel(); }
   }
-  function refreshLayers() { fcData.rain = null; fcData.river = null; eonet = null; rv.loaded = false; applyLayers(); }
+  function refreshLayers() { fcData.rain = null; fcData.river = null; eonet = null; rv.loaded = false; fcg = null; fcc = null; stopFc(); applyLayers(); }
   function renderPanel() {
     var h = '';
     each(LAYERS, function (l) {
@@ -543,6 +544,7 @@
     h += lgSec('Incident severity', [[SEVCOL[0], 'Low'], [SEVCOL[1], 'Moderate'], [SEVCOL[2], 'High'], [SEVCOL[3], 'Critical']].concat(statusF !== 'active' ? [[RESCOL, 'Resolved']] : []));
     h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano, swirl typhoon, slope landslide.</div>';
     if (settings.layers.radar) { h += lgSec('Rain radar', [['#38bdf8', 'Light rain'], ['#22c55e', 'Moderate'], ['#facc15', 'Heavy'], ['#f97316', 'Very heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">Dashed line: Philippine Area of Responsibility. Tap the map for rainfall at that spot.</div><div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
+    if (settings.layers.fcmap) { h += '<h4>Rain forecast map (mm per hour)</h4><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#7dd3fc,#3b82f6,#22c55e,#facc15,#f97316,#ef4444,#d946ef)"></div><div class="m" style="display:flex;justify-content:space-between"><span>0.2</span><span>1</span><span>2.5</span><span>5</span><span>10</span><span>20</span><span>40+</span></div><div class="m">White streaks show wind direction. Use the timeline to move through the next 4 days.</div>'; }
     if (settings.layers.cloud) { h += lgSec('Cloud cover', [['#f3f4f6', 'Cold, high cloud tops'], ['#6b7280', 'Warmer, thinner cloud']]); }
     if (settings.layers.rain) { rows = []; each(RAIN_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('Rain forecast, next 24 h', rows); }
     if (settings.layers.river) { rows = []; each(RIVER_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('River flood outlook', rows); }
@@ -550,6 +552,218 @@
     if (settings.layers.storm) { rows = []; each(STORM_CLASSES, function (c) { rows.push([c[1], c[2]]); }); rows.push(['#94a3b8', 'Unclassified']); h += lgSec('Storms and typhoons', rows) + '<div class="m">Dashed line shows past track.</div>'; }
     $('legend').innerHTML = h + '</div>';
   }
+
+  /* FC-BEGIN */
+  /* ---------- forecast map: rain heat map, wind, timeline and weather icons ---------- */
+  var FCS = { latTop: 21, latBot: 5, lngW: 116, lngE: 127, step: 1, cell: 12, hours: 96 };
+  var FC_STOPS = [[0.05, 125, 211, 252, 0], [0.2, 125, 211, 252, 115], [1, 59, 130, 246, 180], [2.5, 34, 197, 94, 205], [5, 250, 204, 21, 215], [10, 249, 115, 22, 225], [20, 239, 68, 68, 235], [40, 217, 70, 239, 245]];
+  var fcg = null, fcgAt = 0, fcc = null, fcActive = false, fcT = 0, fcOverlay = null, fcBar = null, fcTimer = null, fcMarks = [], fcMarkGroup = null, fcWind = null;
+  function isArr(d) { return Object.prototype.toString.call(d) === '[object Array]'; }
+  function fcColor(v) {
+    var i, a, b, t, last = FC_STOPS[FC_STOPS.length - 1];
+    if (!(v > FC_STOPS[0][0])) { return null; }
+    for (i = 1; i < FC_STOPS.length; i++) {
+      if (v <= FC_STOPS[i][0]) {
+        a = FC_STOPS[i - 1]; b = FC_STOPS[i]; t = (v - a[0]) / (b[0] - a[0]);
+        return [a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t, a[4] + (b[4] - a[4]) * t];
+      }
+    }
+    return [last[1], last[2], last[3], last[4]];
+  }
+  function fcSample(arr, lat, lng, clampIt) {
+    var g = fcg, gr = (g.lat0 - lat) / g.step, gc = (lng - g.lng0) / g.step, r0, c0, r1, c1, fr, fq, a, b, c, d;
+    if (!clampIt && (gr < 0 || gc < 0 || gr > g.rows - 1 || gc > g.cols - 1)) { return null; }
+    gr = Math.max(0, Math.min(g.rows - 1, gr)); gc = Math.max(0, Math.min(g.cols - 1, gc));
+    r0 = Math.floor(gr); c0 = Math.floor(gc); r1 = Math.min(g.rows - 1, r0 + 1); c1 = Math.min(g.cols - 1, c0 + 1);
+    fr = gr - r0; fq = gc - c0;
+    a = arr[r0 * g.cols + c0]; b = arr[r0 * g.cols + c1]; c = arr[r1 * g.cols + c0]; d = arr[r1 * g.cols + c1];
+    return (a * (1 - fq) + b * fq) * (1 - fr) + (c * (1 - fq) + d * fq) * fr;
+  }
+  function fcMerc(l) { return Math.log(Math.tan(Math.PI / 4 + l * Math.PI / 360)); }
+  function fcUnmerc(m) { return (2 * Math.atan(Math.exp(m)) - Math.PI / 2) * 180 / Math.PI; }
+  function fcLabel(ms) { return new Date(ms).toLocaleString('en-US', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' PHT'; }
+  function wmo(code, day) {
+    if (code === 0) { return day ? ['\u2600\uFE0F', 'Clear skies'] : ['\uD83C\uDF19', 'Clear skies']; }
+    if (code === 1) { return day ? ['\uD83C\uDF24\uFE0F', 'Mostly clear'] : ['\uD83C\uDF19', 'Mostly clear']; }
+    if (code === 2) { return day ? ['\u26C5', 'Partly cloudy'] : ['\u2601\uFE0F', 'Partly cloudy']; }
+    if (code === 3) { return ['\u2601\uFE0F', 'Cloudy skies']; }
+    if (code === 45 || code === 48) { return ['\uD83C\uDF2B\uFE0F', 'Fog']; }
+    if (code >= 51 && code <= 57) { return ['\uD83C\uDF26\uFE0F', 'Drizzle']; }
+    if (code >= 61 && code <= 67) { return ['\uD83C\uDF27\uFE0F', 'Rain']; }
+    if (code >= 80 && code <= 82) { return ['\uD83C\uDF26\uFE0F', 'Rain showers']; }
+    if (code >= 95) { return ['\u26C8\uFE0F', 'Thunderstorm']; }
+    return ['\u2601\uFE0F', 'Cloudy'];
+  }
+  function loadFcGrid(cb, fail) {
+    var la = [], lo = [], rows = Math.round((FCS.latTop - FCS.latBot) / FCS.step) + 1, cols = Math.round((FCS.lngE - FCS.lngW) / FCS.step) + 1, r, c;
+    if (fcg && Date.now() - fcgAt < 1800000) { cb(); return; }
+    for (r = 0; r < rows; r++) { for (c = 0; c < cols; c++) { la.push(FCS.latTop - r * FCS.step); lo.push(FCS.lngW + c * FCS.step); } }
+    xhr('https://api.open-meteo.com/v1/forecast?latitude=' + la.join(',') + '&longitude=' + lo.join(',') + '&hourly=precipitation,wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&forecast_hours=' + FCS.hours + '&timezone=Asia%2FManila', function (d) {
+      var arr = isArr(d) ? d : [d], n = rows * cols, T, t, g;
+      if (!arr.length || !arr[0].hourly || !arr[0].hourly.time || !arr[0].hourly.time.length) { fail(); return; }
+      T = arr[0].hourly.time.length;
+      g = { rows: rows, cols: cols, lat0: FCS.latTop, lng0: FCS.lngW, step: FCS.step, time: [], rain: [], u: [], v: [] };
+      for (t = 0; t < T; t++) { g.time.push(Date.parse(arr[0].hourly.time[t] + '+08:00')); g.rain.push(new Float32Array(n)); g.u.push(new Float32Array(n)); g.v.push(new Float32Array(n)); }
+      each(arr, function (o, i) {
+        var h = o.hourly, k, sp, di;
+        if (!h || i >= n || !h.precipitation) { return; }
+        for (k = 0; k < T; k++) {
+          g.rain[k][i] = h.precipitation[k] || 0;
+          sp = h.wind_speed_10m ? (h.wind_speed_10m[k] || 0) : 0; di = (h.wind_direction_10m ? (h.wind_direction_10m[k] || 0) : 0) * Math.PI / 180;
+          g.u[k][i] = -sp * Math.sin(di); g.v[k][i] = -sp * Math.cos(di);
+        }
+      });
+      fcg = g; fcgAt = Date.now(); cb();
+    }, function () { fail(); });
+  }
+  function loadFcCities(cb) {
+    if (fcc) { cb(); return; }
+    xhr('https://api.open-meteo.com/v1/forecast?' + pointsQS() + '&hourly=weather_code,temperature_2m,precipitation,is_day&forecast_hours=' + FCS.hours + '&timezone=Asia%2FManila', function (d) {
+      var arr = isArr(d) ? d : [d], out = [];
+      each(arr, function (o, i) {
+        if (!o.hourly || !o.hourly.time || !o.hourly.time.length || !POINTS[i]) { return; }
+        out.push({ name: POINTS[i][0], lat: POINTS[i][1], lng: POINTS[i][2], h: o.hourly, t0: Date.parse(o.hourly.time[0] + '+08:00') });
+      });
+      fcc = out; cb();
+    }, function () { fcc = []; cb(); });
+  }
+  function fcPixels() {
+    var g = fcg, W = g.cols * FCS.cell, H = g.rows * FCS.cell, data = new Uint8ClampedArray(W * H * 4), arr = g.rain[fcT], x, y, lat, lng, c, o;
+    var latN = g.lat0 + g.step / 2, latS = g.lat0 - (g.rows - 1) * g.step - g.step / 2, lngW = g.lng0 - g.step / 2, lngE = g.lng0 + (g.cols - 1) * g.step + g.step / 2;
+    var mN = fcMerc(latN), mS = fcMerc(latS);
+    for (y = 0; y < H; y++) {
+      lat = fcUnmerc(mN - (y + 0.5) / H * (mN - mS));
+      for (x = 0; x < W; x++) {
+        lng = lngW + (x + 0.5) / W * (lngE - lngW);
+        c = fcColor(fcSample(arr, lat, lng, true));
+        if (c) { o = (y * W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = c[3]; }
+      }
+    }
+    return { w: W, h: H, data: data, bounds: [[latS, lngW], [latN, lngE]] };
+  }
+  function fcRender() {
+    var p = fcPixels(), cv = document.createElement('canvas'), ctx = cv.getContext('2d'), im, url;
+    cv.width = p.w; cv.height = p.h;
+    im = ctx.createImageData(p.w, p.h); im.data.set(p.data); ctx.putImageData(im, 0, 0);
+    url = cv.toDataURL('image/png');
+    if (!fcOverlay) { fcOverlay = L.imageOverlay(url, p.bounds, { opacity: 0.9, zIndex: 6, interactive: false }).addTo(map); }
+    else { fcOverlay.setUrl(url); }
+  }
+  function fcCityIcon(ic) { return L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div style="font-size:22px;line-height:28px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.65)">' + ic + '</div>' }); }
+  function fcCityAt(c) {
+    var k = Math.round((fcg.time[fcT] - c.t0) / 3600000), h = c.h, w;
+    if (k < 0 || k >= h.time.length) { return null; }
+    w = wmo(h.weather_code ? h.weather_code[k] : null, h.is_day ? h.is_day[k] === 1 : true);
+    return { ic: w[0], txt: w[1], temp: h.temperature_2m ? h.temperature_2m[k] : null, rain: h.precipitation ? (h.precipitation[k] || 0) : 0 };
+  }
+  function fcMarkUpdate() {
+    each(fcMarks, function (m) { var d = fcCityAt(m.city); m.setIcon(fcCityIcon(d ? d.ic : '')); m.setOpacity(d ? 1 : 0); });
+  }
+  function fcBuildMarks() {
+    fcMarkGroup = L.layerGroup(); fcMarks = [];
+    each(fcc || [], function (c) {
+      var m = L.marker([c.lat, c.lng], { icon: fcCityIcon(''), pane: 'fc' });
+      m.city = c;
+      m.bindPopup(function () {
+        var d = fcCityAt(c);
+        if (!d) { return 'No data for this time.'; }
+        return '<b>' + esc(c.name) + '</b><br>' + d.txt + '<br>' + fcLabel(fcg.time[fcT]) + (d.temp != null ? ' \u00b7 ' + Math.round(d.temp) + '\u00b0C' : '') + '<br>Rain ' + d.rain.toFixed(1) + ' mm in that hour<br><small>Model forecast (Open-Meteo). Not an official PAGASA forecast.</small>';
+      });
+      m.addTo(fcMarkGroup); fcMarks.push(m);
+    });
+    fcMarkGroup.addTo(map);
+  }
+  function fcShow(i) {
+    var n = fcg.time.length, l, r;
+    fcT = ((i % n) + n) % n;
+    fcRender();
+    if (fcBar) { l = fcBar.querySelector('.fclbl'); r = fcBar.querySelector('.fcrange'); l.textContent = fcLabel(fcg.time[fcT]); r.value = String(fcT); }
+    fcMarkUpdate();
+  }
+  function fcPlayToggle() {
+    var b = fcBar ? fcBar.querySelector('.fcplay') : null;
+    if (fcTimer) { clearInterval(fcTimer); fcTimer = null; if (b) { b.textContent = '\u25B6'; b.setAttribute('aria-label', 'Play forecast'); } return; }
+    fcTimer = setInterval(function () { fcShow(fcT + 1); }, 700);
+    if (b) { b.textContent = '\u275A\u275A'; b.setAttribute('aria-label', 'Pause forecast'); }
+  }
+  function fcBuildBar() {
+    var d = document.createElement('div');
+    d.className = 'fcbar';
+    d.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:28px;z-index:900;width:min(560px,92%);box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;background:rgba(15,19,24,.88);color:#fff;font:12px/1.2 system-ui,sans-serif';
+    d.innerHTML = '<button type="button" class="fcplay" aria-label="Play forecast" style="flex:none;width:36px;height:36px;border-radius:50%;border:0;background:#3b82f6;color:#fff;font-size:13px;cursor:pointer">\u25B6</button><div style="flex:1;min-width:0"><div class="fclbl" style="margin-bottom:4px;font-weight:600"></div><input class="fcrange" type="range" min="0" max="' + (fcg.time.length - 1) + '" value="0" step="1" aria-label="Forecast time" style="width:100%;margin:0"></div>';
+    map.getContainer().appendChild(d);
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    d.querySelector('.fcplay').addEventListener('click', fcPlayToggle);
+    d.querySelector('.fcrange').addEventListener('input', function () { if (fcTimer) { fcPlayToggle(); } fcShow(parseInt(this.value, 10) || 0); });
+    fcBar = d;
+  }
+  function fcWindStart() {
+    var cv = document.createElement('canvas'), box = map.getContainer(), ctx = cv.getContext('2d'), parts = [], W = 0, H = 0, last = 0, w;
+    function spawn(p) { p.x = Math.random() * W; p.y = Math.random() * H; p.age = 0; p.life = 40 + Math.random() * 60; }
+    function fill() { var n = Math.max(120, Math.min(600, Math.round(W * H / 1800))), i; parts = []; for (i = 0; i < n; i++) { parts.push({ x: 0, y: 0, age: 0, life: 1 }); spawn(parts[i]); } }
+    function size() { W = box.clientWidth; H = box.clientHeight; cv.width = W; cv.height = H; fill(); }
+    function reset() { ctx.clearRect(0, 0, W, H); each(parts, spawn); }
+    function frame(ts) {
+      if (!fcWind || fcWind.cv !== cv) { return; }
+      fcWind.raf = window.requestAnimationFrame(frame);
+      if (document.hidden || ts - last < 33 || !fcg) { return; }
+      last = ts;
+      ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1; ctx.beginPath();
+      each(parts, function (p) {
+        var ll = map.containerPointToLatLng([p.x, p.y]), u = fcSample(fcg.u[fcT], ll.lat, ll.lng), v = fcSample(fcg.v[fcT], ll.lat, ll.lng), nx, ny;
+        if (u === null || v === null || ++p.age > p.life) { spawn(p); return; }
+        nx = p.x + u * 0.3; ny = p.y - v * 0.3;
+        ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); p.x = nx; p.y = ny;
+      });
+      ctx.stroke();
+    }
+    cv.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:450';
+    box.appendChild(cv);
+    size();
+    w = { cv: cv, raf: 0, onMove: reset, onSize: size };
+    fcWind = w;
+    map.on('movestart zoomstart', reset); map.on('resize', size);
+    w.raf = window.requestAnimationFrame(frame);
+  }
+  function fcWindStop() {
+    var w = fcWind;
+    if (!w) { return; }
+    fcWind = null;
+    if (w.raf) { window.cancelAnimationFrame(w.raf); }
+    if (map) { map.off('movestart zoomstart', w.onMove); map.off('resize', w.onSize); }
+    if (w.cv.parentNode) { w.cv.parentNode.removeChild(w.cv); }
+  }
+  function stopFc() {
+    fcActive = false;
+    if (fcTimer) { clearInterval(fcTimer); fcTimer = null; }
+    fcWindStop();
+    if (fcBar && fcBar.parentNode) { fcBar.parentNode.removeChild(fcBar); }
+    fcBar = null;
+    if (map && fcOverlay) { map.removeLayer(fcOverlay); }
+    fcOverlay = null;
+    if (map && fcMarkGroup) { map.removeLayer(fcMarkGroup); }
+    fcMarkGroup = null; fcMarks = [];
+  }
+  function startFc() {
+    fcActive = true;
+    setStat('fcmap', 'Loading');
+    loadFcGrid(function () {
+      if (!fcActive) { return; }
+      loadFcCities(function () {
+        if (!fcActive) { return; }
+        fcT = 0;
+        fcBuildBar(); fcBuildMarks(); fcShow(0); fcWindStart();
+        setStat('fcmap', stamp()); renderLegend();
+      });
+    }, function () { fcActive = false; setStat('fcmap', 'Unavailable'); });
+  }
+  function syncFc() {
+    if (!map) { return; }
+    if (settings.layers.fcmap && !fcActive) { startFc(); }
+    else if (!settings.layers.fcmap && fcActive) { stopFc(); setStat('fcmap', ''); }
+  }
+  /* FC-END */
 
   /* ---------- detail ---------- */
   function noteFor(r) {
