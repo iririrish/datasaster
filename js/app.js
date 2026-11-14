@@ -673,28 +673,66 @@
     });
     fcMarkGroup.addTo(map);
   }
+  var FC_PLAY = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="#fff"/></svg>';
+  var FC_PAUSE = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="#fff"/></svg>';
+  var FC_CSS = '.fcrange{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;cursor:pointer;outline:none}' +
+    '.fcrange::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#fff var(--p,0%),rgba(255,255,255,.28) var(--p,0%))}' +
+    '.fcrange::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;margin-top:-9px;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
+    '.fcrange::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.28)}' +
+    '.fcrange::-moz-range-progress{height:4px;border-radius:2px;background:#fff}' +
+    '.fcrange::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
+    '.fcrange:focus-visible::-webkit-slider-thumb{outline:2px solid #3b82f6;outline-offset:2px}';
+  function fcBubbleText(ms) { return fcLabel(ms).replace(' PHT', '').replace(/(\d{1,2}), (\d{1,2}:\d{2})/, '$1 $2'); }
+  function fcPlaceBubble() {
+    var wrap, bub, ww, bw, x, pct, n;
+    if (!fcBar || !fcg) { return; }
+    wrap = fcBar.querySelector('.fctrack'); bub = fcBar.querySelector('.fclbl');
+    n = fcg.time.length; pct = n > 1 ? fcT / (n - 1) : 0;
+    ww = wrap.clientWidth; bw = bub.offsetWidth; x = 11 + pct * (ww - 22);
+    x = Math.max(bw / 2, Math.min(ww - bw / 2, x));
+    bub.style.left = x + 'px';
+  }
   function fcShow(i) {
-    var n = fcg.time.length, l, r;
+    var n = fcg.time.length, r, bub, pct;
     fcT = ((i % n) + n) % n;
     fcRender();
-    if (fcBar) { l = fcBar.querySelector('.fclbl'); r = fcBar.querySelector('.fcrange'); l.textContent = fcLabel(fcg.time[fcT]); r.value = String(fcT); }
+    if (fcBar) {
+      r = fcBar.querySelector('.fcrange'); bub = fcBar.querySelector('.fclbl');
+      pct = n > 1 ? fcT / (n - 1) : 0;
+      r.value = String(fcT); r.style.setProperty('--p', (pct * 100) + '%');
+      bub.textContent = fcBubbleText(fcg.time[fcT]);
+      fcPlaceBubble();
+    }
     fcMarkUpdate();
   }
   function fcPlayToggle() {
     var b = fcBar ? fcBar.querySelector('.fcplay') : null;
-    if (fcTimer) { clearInterval(fcTimer); fcTimer = null; if (b) { b.textContent = '\u25B6'; b.setAttribute('aria-label', 'Play forecast'); } return; }
+    if (fcTimer) { clearInterval(fcTimer); fcTimer = null; if (b) { b.innerHTML = FC_PLAY; b.setAttribute('aria-label', 'Play forecast'); } return; }
     fcTimer = setInterval(function () { fcShow(fcT + 1); }, 700);
-    if (b) { b.textContent = '\u275A\u275A'; b.setAttribute('aria-label', 'Pause forecast'); }
+    if (b) { b.innerHTML = FC_PAUSE; b.setAttribute('aria-label', 'Pause forecast'); }
   }
   function fcBuildBar() {
-    var d = document.createElement('div');
+    var d = document.createElement('div'), days = [], seg = '', st;
+    if (!document.getElementById('fcstyle')) { st = document.createElement('style'); st.id = 'fcstyle'; st.textContent = FC_CSS; document.head.appendChild(st); }
+    each(fcg.time, function (ms) {
+      var key = manilaDay(ms);
+      if (!days.length || days[days.length - 1].key !== key) { days.push({ key: key, ms: ms, n: 0 }); }
+      days[days.length - 1].n++;
+    });
+    each(days, function (dy, i) {
+      seg += '<div style="flex:' + dy.n + ' 1 0;position:relative;text-align:center;font-size:13px;color:rgba(255,255,255,.75);min-width:0;white-space:nowrap;overflow:hidden">' + (i ? '<span style="position:absolute;left:0;top:1px;height:14px;border-left:1px solid rgba(255,255,255,.3)"></span>' : '') + (dy.n >= 6 ? new Date(dy.ms).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }) : '') + '</div>';
+    });
     d.className = 'fcbar';
-    d.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:28px;z-index:900;width:min(560px,92%);box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;background:rgba(15,19,24,.88);color:#fff;font:12px/1.2 system-ui,sans-serif';
-    d.innerHTML = '<button type="button" class="fcplay" aria-label="Play forecast" style="flex:none;width:36px;height:36px;border-radius:50%;border:0;background:#3b82f6;color:#fff;font-size:13px;cursor:pointer">\u25B6</button><div style="flex:1;min-width:0"><div class="fclbl" style="margin-bottom:4px;font-weight:600"></div><input class="fcrange" type="range" min="0" max="' + (fcg.time.length - 1) + '" value="0" step="1" aria-label="Forecast time" style="width:100%;margin:0"></div>';
+    d.style.cssText = 'position:absolute;left:12px;right:12px;bottom:34px;z-index:900;box-sizing:border-box;display:flex;align-items:center;gap:16px;padding:16px 22px 12px 14px;border-radius:22px;background:rgba(15,19,24,.82);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#fff;font:15px/1.3 system-ui,sans-serif';
+    d.innerHTML = '<button type="button" class="fcplay" aria-label="Play forecast" style="flex:none;width:58px;height:58px;border-radius:50%;border:0;background:rgba(58,58,58,.85);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">' + FC_PLAY + '</button>' +
+      '<div style="flex:1;min-width:0"><div class="fctrack" style="position:relative"><div class="fclbl" style="position:absolute;bottom:calc(100% + 28px);left:0;transform:translateX(-50%);padding:7px 14px;border-radius:10px;background:rgba(15,19,24,.92);font-size:14px;font-weight:700;white-space:nowrap;pointer-events:none"></div>' +
+      '<input class="fcrange" type="range" min="0" max="' + (fcg.time.length - 1) + '" value="0" step="1" aria-label="Forecast time"></div>' +
+      '<div style="display:flex;padding:2px 11px 0;margin-top:2px">' + seg + '</div></div>';
     map.getContainer().appendChild(d);
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
     d.querySelector('.fcplay').addEventListener('click', fcPlayToggle);
     d.querySelector('.fcrange').addEventListener('input', function () { if (fcTimer) { fcPlayToggle(); } fcShow(parseInt(this.value, 10) || 0); });
+    map.on('resize', fcPlaceBubble);
     fcBar = d;
   }
   function fcWindStart() {
@@ -738,6 +776,7 @@
     fcActive = false;
     if (fcTimer) { clearInterval(fcTimer); fcTimer = null; }
     fcWindStop();
+    if (map) { map.off('resize', fcPlaceBubble); }
     if (fcBar && fcBar.parentNode) { fcBar.parentNode.removeChild(fcBar); }
     fcBar = null;
     if (map && fcOverlay) { map.removeLayer(fcOverlay); }
