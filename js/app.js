@@ -555,7 +555,7 @@
 
   /* FC-BEGIN */
   /* ---------- forecast map: rain heat map, wind, timeline and weather icons ---------- */
-  var FCS = { latTop: 21, latBot: 5, lngW: 116, lngE: 127, step: 1, cell: 12, hours: 96 };
+  var FCS = { latTop: 28, latBot: 0, lngW: 102, lngE: 140, step: 2, cell: 10, hours: 96 };
   var FC_STOPS = [[0.05, 125, 211, 252, 0], [0.2, 125, 211, 252, 115], [1, 59, 130, 246, 180], [2.5, 34, 197, 94, 205], [5, 250, 204, 21, 215], [10, 249, 115, 22, 225], [20, 239, 68, 68, 235], [40, 217, 70, 239, 245]];
   var fcg = null, fcgAt = 0, fcc = null, fcActive = false, fcT = 0, fcOverlay = null, fcBar = null, fcTimer = null, fcMarks = [], fcMarkGroup = null, fcWind = null;
   function isArr(d) { return Object.prototype.toString.call(d) === '[object Array]'; }
@@ -628,7 +628,7 @@
     }, function () { fcc = []; cb(); });
   }
   function fcPixels() {
-    var g = fcg, W = g.cols * FCS.cell, H = g.rows * FCS.cell, data = new Uint8ClampedArray(W * H * 4), arr = g.rain[fcT], x, y, lat, lng, c, o;
+    var g = fcg, W = g.cols * FCS.cell, H = g.rows * FCS.cell, data = new Uint8ClampedArray(W * H * 4), arr = g.rain[fcT], x, y, lat, lng, c, o, fade;
     var latN = g.lat0 + g.step / 2, latS = g.lat0 - (g.rows - 1) * g.step - g.step / 2, lngW = g.lng0 - g.step / 2, lngE = g.lng0 + (g.cols - 1) * g.step + g.step / 2;
     var mN = fcMerc(latN), mS = fcMerc(latS);
     for (y = 0; y < H; y++) {
@@ -636,7 +636,10 @@
       for (x = 0; x < W; x++) {
         lng = lngW + (x + 0.5) / W * (lngE - lngW);
         c = fcColor(fcSample(arr, lat, lng, true));
-        if (c) { o = (y * W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = c[3]; }
+        if (c) {
+          fade = Math.min(1, Math.min(Math.min(x + 0.5, W - x - 0.5), Math.min(y + 0.5, H - y - 0.5)) / FCS.cell);
+          o = (y * W + x) * 4; data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = c[3] * fade;
+        }
       }
     }
     return { w: W, h: H, data: data, bounds: [[latS, lngW], [latN, lngE]] };
@@ -646,7 +649,7 @@
     cv.width = p.w; cv.height = p.h;
     im = ctx.createImageData(p.w, p.h); im.data.set(p.data); ctx.putImageData(im, 0, 0);
     url = cv.toDataURL('image/png');
-    if (!fcOverlay) { fcOverlay = L.imageOverlay(url, p.bounds, { opacity: 0.9, zIndex: 6, interactive: false }).addTo(map); }
+    if (!fcOverlay) { fcOverlay = L.imageOverlay(url, p.bounds, { opacity: 0.6, zIndex: 6, interactive: false }).addTo(map); }
     else { fcOverlay.setUrl(url); }
   }
   function fcCityIcon(ic) { return L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div style="font-size:22px;line-height:28px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.65)">' + ic + '</div>' }); }
@@ -675,12 +678,12 @@
   }
   var FC_PLAY = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="#fff"/></svg>';
   var FC_PAUSE = '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="#fff"/></svg>';
-  var FC_CSS = '.fcrange{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;cursor:pointer;outline:none}' +
+  var FC_CSS = '.fcrange{-webkit-appearance:none;appearance:none;width:100%;height:22px;background:transparent;margin:0;cursor:pointer;outline:none}' +
     '.fcrange::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#fff var(--p,0%),rgba(255,255,255,.28) var(--p,0%))}' +
-    '.fcrange::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;margin-top:-9px;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
+    '.fcrange::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;margin-top:-7px;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
     '.fcrange::-moz-range-track{height:4px;border-radius:2px;background:rgba(255,255,255,.28)}' +
     '.fcrange::-moz-range-progress{height:4px;border-radius:2px;background:#fff}' +
-    '.fcrange::-moz-range-thumb{width:22px;height:22px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
+    '.fcrange::-moz-range-thumb{width:18px;height:18px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.55)}' +
     '.fcrange:focus-visible::-webkit-slider-thumb{outline:2px solid #3b82f6;outline-offset:2px}';
   function fcBubbleText(ms) { return fcLabel(ms).replace(' PHT', '').replace(/(\d{1,2}), (\d{1,2}:\d{2})/, '$1 $2'); }
   function fcPlaceBubble() {
@@ -688,7 +691,7 @@
     if (!fcBar || !fcg) { return; }
     wrap = fcBar.querySelector('.fctrack'); bub = fcBar.querySelector('.fclbl');
     n = fcg.time.length; pct = n > 1 ? fcT / (n - 1) : 0;
-    ww = wrap.clientWidth; bw = bub.offsetWidth; x = 11 + pct * (ww - 22);
+    ww = wrap.clientWidth; bw = bub.offsetWidth; x = 9 + pct * (ww - 18);
     x = Math.max(bw / 2, Math.min(ww - bw / 2, x));
     bub.style.left = x + 'px';
   }
@@ -720,14 +723,14 @@
       days[days.length - 1].n++;
     });
     each(days, function (dy, i) {
-      seg += '<div style="flex:' + dy.n + ' 1 0;position:relative;text-align:center;font-size:13px;color:rgba(255,255,255,.75);min-width:0;white-space:nowrap;overflow:hidden">' + (i ? '<span style="position:absolute;left:0;top:1px;height:14px;border-left:1px solid rgba(255,255,255,.3)"></span>' : '') + (dy.n >= 6 ? new Date(dy.ms).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }) : '') + '</div>';
+      seg += '<div style="flex:' + dy.n + ' 1 0;position:relative;text-align:center;font-size:11px;color:rgba(255,255,255,.75);min-width:0;white-space:nowrap;overflow:hidden">' + (i ? '<span style="position:absolute;left:0;top:1px;height:14px;border-left:1px solid rgba(255,255,255,.3)"></span>' : '') + (dy.n >= 6 ? new Date(dy.ms).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'short' }) : '') + '</div>';
     });
     d.className = 'fcbar';
-    d.style.cssText = 'position:absolute;left:12px;right:12px;bottom:34px;z-index:900;box-sizing:border-box;display:flex;align-items:center;gap:16px;padding:16px 22px 12px 14px;border-radius:22px;background:rgba(15,19,24,.82);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#fff;font:15px/1.3 system-ui,sans-serif';
-    d.innerHTML = '<button type="button" class="fcplay" aria-label="Play forecast" style="flex:none;width:58px;height:58px;border-radius:50%;border:0;background:rgba(58,58,58,.85);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">' + FC_PLAY + '</button>' +
-      '<div style="flex:1;min-width:0"><div class="fctrack" style="position:relative"><div class="fclbl" style="position:absolute;bottom:calc(100% + 28px);left:0;transform:translateX(-50%);padding:7px 14px;border-radius:10px;background:rgba(15,19,24,.92);font-size:14px;font-weight:700;white-space:nowrap;pointer-events:none"></div>' +
+    d.style.cssText = 'position:absolute;left:50%;transform:translateX(-50%);bottom:30px;z-index:900;width:min(560px,92%);box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:10px 16px 8px 10px;border-radius:16px;background:rgba(15,19,24,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#fff;font:12px/1.3 system-ui,sans-serif';
+    d.innerHTML = '<button type="button" class="fcplay" aria-label="Play forecast" style="flex:none;width:42px;height:42px;border-radius:50%;border:0;background:rgba(58,58,58,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">' + FC_PLAY + '</button>' +
+      '<div style="flex:1;min-width:0"><div class="fctrack" style="position:relative"><div class="fclbl" style="position:absolute;bottom:calc(100% + 20px);left:0;transform:translateX(-50%);padding:5px 11px;border-radius:9px;background:rgba(15,19,24,.75);font-size:12px;font-weight:700;white-space:nowrap;pointer-events:none"></div>' +
       '<input class="fcrange" type="range" min="0" max="' + (fcg.time.length - 1) + '" value="0" step="1" aria-label="Forecast time"></div>' +
-      '<div style="display:flex;padding:2px 11px 0;margin-top:2px">' + seg + '</div></div>';
+      '<div style="display:flex;padding:1px 9px 0;margin-top:1px">' + seg + '</div></div>';
     map.getContainer().appendChild(d);
     L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
     d.querySelector('.fcplay').addEventListener('click', fcPlayToggle);
@@ -737,7 +740,15 @@
   }
   function fcWindStart() {
     var cv = document.createElement('canvas'), box = map.getContainer(), ctx = cv.getContext('2d'), parts = [], W = 0, H = 0, last = 0, w;
-    function spawn(p) { p.x = Math.random() * W; p.y = Math.random() * H; p.age = 0; p.life = 40 + Math.random() * 60; }
+    function spawn(p) {
+      var k, ll;
+      for (k = 0; k < 6; k++) {
+        p.x = Math.random() * W; p.y = Math.random() * H;
+        ll = map.containerPointToLatLng([p.x, p.y]);
+        if (fcg && fcSample(fcg.u[fcT], ll.lat, ll.lng) !== null) { break; }
+      }
+      p.age = 0; p.life = 40 + Math.random() * 60;
+    }
     function fill() { var n = Math.max(120, Math.min(600, Math.round(W * H / 1800))), i; parts = []; for (i = 0; i < n; i++) { parts.push({ x: 0, y: 0, age: 0, life: 1 }); spawn(parts[i]); } }
     function size() { W = box.clientWidth; H = box.clientHeight; cv.width = W; cv.height = H; fill(); }
     function reset() { ctx.clearRect(0, 0, W, H); each(parts, spawn); }
@@ -747,7 +758,7 @@
       if (document.hidden || ts - last < 33 || !fcg) { return; }
       last = ts;
       ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fillRect(0, 0, W, H);
-      ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.lineWidth = 1; ctx.beginPath();
+      ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1; ctx.beginPath();
       each(parts, function (p) {
         var ll = map.containerPointToLatLng([p.x, p.y]), u = fcSample(fcg.u[fcT], ll.lat, ll.lng), v = fcSample(fcg.v[fcT], ll.lat, ll.lng), nx, ny;
         if (u === null || v === null || ++p.age > p.life) { spawn(p); return; }
