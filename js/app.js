@@ -104,7 +104,7 @@
   var MAXPHOTOS = 3, IMG_MAX = 200000;
 
   /* ---------- state ---------- */
-  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { radar: true, cloud: false, rain: false, river: false, fire: false, storm: false, fcmap: false } };
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { reports: true, radar: true, cloud: false, rain: false, river: false, fire: false, storm: false, fcmap: false } };
   SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var settings = clone(DEFAULTS);
@@ -179,7 +179,7 @@
     if (!o.noTrust && !trustOK(r)) { return false; }
     if (!o.noStatus && statusF !== 'all' && (statusF === 'resolved') !== !!r.resolved) { return false; }
     if (!o.noDate && !inRange(r)) { return false; }
-    if (sevF >= 0 && r.sev !== sevF) { return false; }
+    if (!o.noSev && sevF >= 0 && r.sev !== sevF) { return false; }
     if (query) {
       q = (r.title + ' ' + r.place + ' ' + r.srcLabel + ' ' + r.desc).toLowerCase();
       if (q.indexOf(query) < 0) { return false; }
@@ -301,6 +301,7 @@
     if (!map) { return; }
     mlayer.clearLayers();
     markers = {};
+    if (!settings.layers.reports) { return; }
     each(groupItems(filtered()), function (g) {
       var r = g.rep, sel = false, k, m;
       for (k = 0; k < g.members.length; k++) { if (g.members[k].id === selId) { sel = true; } }
@@ -541,8 +542,18 @@
     var h = '<button class="lg-h" data-legend="1">Legend ' + icon(legendOpen ? 'down' : 'up', 14) + '</button>', rows;
     if (!legendOpen) { $('legend').innerHTML = h; return; }
     h += '<div class="lg-b">';
-    h += lgSec('Incident severity', [[SEVCOL[0], 'Low'], [SEVCOL[1], 'Moderate'], [SEVCOL[2], 'High'], [SEVCOL[3], 'Critical']].concat(statusF !== 'active' ? [[RESCOL, 'Resolved']] : []));
-    h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano, swirl typhoon, slope landslide.</div>';
+    if (!settings.layers.reports) {
+      h += '<div class="m" style="margin-top:6px">Incident reports are hidden on the map. <button class="link" data-layer="reports">Show reports</button></div>';
+    } else {
+      var tc = {}, sc = [0, 0, 0, 0], base = pool();
+      each(base, function (r) { if (match(r, { noType: true })) { tc[r.type] = (tc[r.type] || 0) + 1; } if (match(r, { noSev: true })) { sc[r.sev]++; } });
+      h += '<h4>Hazard type <span class="m">tap to filter</span></h4><div class="lg-grid">';
+      each(TORDER, function (t) { if (settings.cats[t]) { h += '<button class="lg-b2' + (tf === t ? ' on' : '') + '" data-tf="' + (tf === t ? 'all' : t) + '" style="--c:var(--accent)">' + icon(TYPES[t].ic, 13) + '<span class="n">' + (TSHORT[t] || TYPES[t].label) + '</span><b>' + (tc[t] || 0) + '</b></button>'; } });
+      h += '</div><h4>Severity <span class="m">tap to filter</span></h4><div class="lg-grid">';
+      each(SEV, function (s, i) { h += '<button class="lg-b2' + (sevF === i ? ' on' : '') + '" data-sevf="' + i + '" style="--c:' + SEVCOL[i] + '"><span class="dot"></span><span class="n">' + s + '</span><b>' + sc[i] + '</b></button>'; });
+      if (statusF !== 'active') { h += '<div class="lg-b2 static" style="--c:' + RESCOL + '"><span class="dot"></span><span class="n">Resolved</span></div>'; }
+      h += '</div><div class="m" style="margin-top:6px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano, swirl typhoon, slope landslide. A number on a pin means several reports of one incident.</div>';
+    }
     if (settings.layers.radar) { h += lgSec('Rain radar', [['#38bdf8', 'Light rain'], ['#22c55e', 'Moderate'], ['#facc15', 'Heavy'], ['#f97316', 'Very heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">Dashed line: Philippine Area of Responsibility. Tap the map for rainfall at that spot.</div><div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
     if (settings.layers.fcmap) { h += '<h4>Rain forecast map (mm per hour)</h4><div style="height:8px;border-radius:4px;background:linear-gradient(90deg,#7dd3fc,#3b82f6,#22c55e,#facc15,#f97316,#ef4444,#d946ef)"></div><div class="m" style="display:flex;justify-content:space-between"><span>0.2</span><span>1</span><span>2.5</span><span>5</span><span>10</span><span>20</span><span>40+</span></div><div class="m">White streaks show wind direction. Use the timeline to move through the next 4 days.</div>'; }
     if (settings.layers.cloud) { h += lgSec('Cloud cover', [['#f3f4f6', 'Cold, high cloud tops'], ['#6b7280', 'Warmer, thinner cloud']]); }
@@ -1416,13 +1427,13 @@
   }
 
   /* ---------- wiring ---------- */
-  function refresh() { renderBar(); renderFeed(); drawMarkers(); }
+  function refresh() { renderBar(); renderFeed(); drawMarkers(); renderLegend(); }
   function applyTheme() {
     document.documentElement.setAttribute('data-theme', settings.theme);
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1488,7 +1499,8 @@
     if (n === 'data-install') { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; renderSettings(); } return; }
     if (n === 'data-theme-set') { settings.theme = v; saveSettings(); applyTheme(); renderSettings(); return; }
     if (n === 'data-base') { settings.basemap = v; saveSettings(); setTiles(); renderBase(); if (viewing === 'settings') { renderSettings(); } return; }
-    if (n === 'data-layer') { settings.layers[v] = !settings.layers[v]; saveSettings(); applyLayers(); return; }
+    if (n === 'data-layer') { settings.layers[v] = !settings.layers[v]; saveSettings(); if (v === 'reports') { drawMarkers(); renderBar(); } applyLayers(); return; }
+    if (n === 'data-sevf') { sevF = (sevF === parseInt(v, 10)) ? -1 : parseInt(v, 10); $('sevSel').value = String(sevF); refresh(); return; }
     if (n === 'data-layers-refresh') { refreshLayers(); return; }
     if (n === 'data-legend') { legendOpen = !legendOpen; renderLegend(); return; }
     if (n === 'data-fly') { $('detailBg').className = 'bg'; select(v, true); return; }

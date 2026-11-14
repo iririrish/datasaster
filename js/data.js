@@ -19,6 +19,7 @@ var NEWS_KEYS = ['abs', 'gma', 'rappler', 'inquirer', 'philstar', 'mb'];
 var SRC_KEYS = ['pagasa', 'phivolcs', 'ndrrmc', 'bfp', 'usgs', 'emsc'].concat(NEWS_KEYS);
 
 var LAYERS = [
+  ['reports', 'Incident reports', 'Pins on the map. The list stays the same'],
   ['radar', 'Rain radar', 'RainViewer'],
   ['cloud', 'Cloud cover (infrared)', 'RainViewer'],
   ['rain', 'Rainfall forecast, next 24 h', 'Open-Meteo model'],
