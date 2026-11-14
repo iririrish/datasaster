@@ -84,11 +84,20 @@ textarea{width:100%;height:80px;resize:vertical}
 .sw{flex:none;width:34px;height:20px;border-radius:10px;background:var(--line);border:0;position:relative;padding:0}
 .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .12s}
 .sw.on{background:var(--accent)}.sw.on::after{left:16px}
-.legend{position:absolute;left:12px;bottom:28px;z-index:1000;width:236px;max-height:62%;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);font-size:12px}
+.legend{position:absolute;left:12px;bottom:28px;z-index:1000;width:272px;max-height:62%;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);font-size:12px}
 .lg-h{display:flex;width:100%;justify-content:space-between;align-items:center;background:none;border:0;padding:8px 12px;font-weight:600}
 .lg-b{padding:0 12px 10px}
 .lg-b h4{font-size:11px;font-weight:600;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em}
 .lg-r{display:flex;align-items:center;gap:8px;padding:2px 0}
+.lg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.lg-b2{display:flex;align-items:center;gap:7px;background:none;border:1px solid var(--line);border-radius:var(--r);padding:4px 8px;font-size:12px;text-align:left;color:var(--text)}
+.lg-b2:hover{border-color:var(--c)}
+.lg-b2.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.lg-b2.static{grid-column:1/-1;cursor:default}
+.lg-b2 .dot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--c);margin:0}
+.lg-b2 .n{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg-b2 b{font-weight:600;color:var(--muted)}
+.lg-b h4 .m{font-weight:400;text-transform:none;letter-spacing:0}
 .sq{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}
 #pickbar{display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1100;background:var(--accent);color:#fff;border-radius:var(--r);padding:8px 12px;white-space:nowrap}
 #pickbar button{margin-left:10px;border:0;border-radius:4px;padding:3px 8px}
