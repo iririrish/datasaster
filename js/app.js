@@ -126,7 +126,7 @@
   var legendOpen = true, panelOpen = false;
   var lstat = {}, lgroups = {}, lupd = {};
   var rv = { loaded: false, loading: false, failed: false, host: '', radar: [], sat: [] }, rvLayers = [], rvCloud = null, rvTimer = null, rvIdx = 0, rvLabel = '';
-  var fcData = { rain: null, river: null }, eonet = null;
+  var fcData = { rain: null, river: null }, eonet = null, parLine = null, rainPop = null;
 
   function buildDemo() {
     var now = Date.now();
@@ -309,6 +309,17 @@
       each(g.members, function (x) { markers[x.id] = m; });
     });
   }
+  function rainAt(ll) {
+    var la = ll.lat.toFixed(3), lo = ll.lng.toFixed(3);
+    if (rainPop) { map.closePopup(rainPop); }
+    rainPop = L.popup({ maxWidth: 240 }).setLatLng(ll).setContent('Checking rainfall...').openOn(map);
+    xhr('https://api.open-meteo.com/v1/forecast?latitude=' + la + '&longitude=' + lo + '&current=precipitation&hourly=precipitation&forecast_hours=6&timezone=Asia%2FManila', function (d) {
+      var now = d.current ? d.current.precipitation : null, mx = 0, ok = d.hourly && d.hourly.precipitation;
+      if (ok) { each(d.hourly.precipitation, function (v) { if (v != null && v > mx) { mx = v; } }); }
+      if (now == null) { rainPop.setContent('No rainfall data for this spot.'); return; }
+      rainPop.setContent('<b>Rain ' + now.toFixed(1) + ' mm (last hour)</b><br>Up to ' + mx.toFixed(1) + ' mm per hour in the next 6 hours<br><small>Model estimate (Open-Meteo), not an official PAGASA forecast. ' + la + ', ' + lo + '</small>');
+    }, function () { rainPop.setContent('Could not load rainfall for this spot.'); });
+  }
   function fitRegion() { if (map) { map.fitBounds(REGIONS[settings.region] || REGIONS.ph, { padding: [10, 10] }); } }
   function initMap() {
     if (typeof L === 'undefined') { $('map').innerHTML = '<div class="empty">The map library could not start in this browser.</div>'; return; }
@@ -318,7 +329,10 @@
     mlayer = L.layerGroup().addTo(map);
     setTiles();
     fitRegion();
-    map.on('click', function (e) { if (picking) { setPending(e.latlng.lat, e.latlng.lng); endPick(); openReport(true); } });
+    map.on('click', function (e) {
+      if (picking) { setPending(e.latlng.lat, e.latlng.lng); endPick(); openReport(true); return; }
+      if (settings.layers.radar) { rainAt(e.latlng); }
+    });
     setTimeout(function () { map.invalidateSize(); fitRegion(); }, 300);
   }
   function select(id, fly) {
@@ -360,6 +374,8 @@
     if (rvTimer) { clearInterval(rvTimer); rvTimer = null; }
     each(rvLayers, function (l) { if (map) { map.removeLayer(l); } });
     rvLayers = []; rvLabel = ''; renderLegend();
+    if (parLine && map) { map.removeLayer(parLine); }
+    if (rainPop && map) { map.closePopup(rainPop); }
   }
   function radarFrame(i) {
     var f = rv.radar[i];
@@ -371,12 +387,14 @@
     if (!map) { return; }
     stopRadar();
     if (!settings.layers.radar) { return; }
+    if (!parLine) { parLine = L.polyline([[25, 120], [25, 135], [5, 135], [5, 115], [15, 115], [21, 120], [25, 120]], { color: '#e5e7eb', weight: 1.5, dashArray: '8 8', opacity: 0.7, interactive: false, pane: 'fc' }); }
+    parLine.addTo(map);
     setStat('radar', 'Loading');
     loadRV(function () {
       if (!settings.layers.radar) { return; }
       if (!rv.radar.length) { setStat('radar', 'No data'); return; }
       each(rv.radar, function (f) {
-        var l = L.tileLayer(rv.host + f.path + '/256/{z}/{x}/{y}/6/1_1.png', { opacity: 0, zIndex: 5, maxNativeZoom: 7, maxZoom: 18 });
+        var l = L.tileLayer(rv.host + f.path + '/256/{z}/{x}/{y}/7/1_1.png', { opacity: 0, zIndex: 5, maxNativeZoom: 7, maxZoom: 18 });
         l.addTo(map); rvLayers.push(l);
       });
       rvIdx = rvLayers.length - 1; radarFrame(rvIdx);
@@ -524,7 +542,7 @@
     h += '<div class="lg-b">';
     h += lgSec('Incident severity', [[SEVCOL[0], 'Low'], [SEVCOL[1], 'Moderate'], [SEVCOL[2], 'High'], [SEVCOL[3], 'Critical']].concat(statusF !== 'active' ? [[RESCOL, 'Resolved']] : []));
     h += '<div class="m" style="margin-top:4px">Icon shows type: drop flood, flame fire, pulse earthquake, mountain volcano, swirl typhoon, slope landslide.</div>';
-    if (settings.layers.radar) { h += lgSec('Rain radar', [['#4ade80', 'Light rain'], ['#facc15', 'Moderate'], ['#fb923c', 'Heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
+    if (settings.layers.radar) { h += lgSec('Rain radar', [['#38bdf8', 'Light rain'], ['#22c55e', 'Moderate'], ['#facc15', 'Heavy'], ['#f97316', 'Very heavy'], ['#ef4444', 'Intense'], ['#d946ef', 'Extreme']]) + '<div class="m">Dashed line: Philippine Area of Responsibility. Tap the map for rainfall at that spot.</div><div class="m">' + (rvLabel || 'Loading frames') + '</div>'; }
     if (settings.layers.cloud) { h += lgSec('Cloud cover', [['#f3f4f6', 'Cold, high cloud tops'], ['#6b7280', 'Warmer, thinner cloud']]); }
     if (settings.layers.rain) { rows = []; each(RAIN_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('Rain forecast, next 24 h', rows); }
     if (settings.layers.river) { rows = []; each(RIVER_CLASSES, function (c) { rows.push([c[1], c[3]]); }); h += lgSec('River flood outlook', rows); }
