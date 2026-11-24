@@ -17,6 +17,43 @@ service cloud.firestore {
     function isOwner() {
       return isAdmin() && adminDoc().get('role', '') != 'agency';
     }
+    // Same check for an assessment: the audit entry must be written in the same batch and point at the same report.
+    function auditOkFor(rid, aid) {
+      return aid is string && aid != ''
+        && existsAfter(/databases/$(database)/documents/audit/$(aid))
+        && getAfter(/databases/$(database)/documents/audit/$(aid)).data.targetId == rid
+        && getAfter(/databases/$(database)/documents/audit/$(aid)).data.uid == request.auth.uid;
+    }
+    // Checks for an official advisory (d = the advisory as it will be stored, advid = its id).
+    // It must carry a revision record and an audit entry written in the same batch.
+    function advOk(d, advid) {
+      return d.keys().hasAll(['agency','uid','title','hazard','areas','desc','sourceUrl','refNo','issuedAt','expiresAt','status','rev','time','auditId','verId'])
+        && d.keys().hasOnly(['agency','uid','title','hazard','areas','desc','sourceUrl','refNo','issuedAt','expiresAt','status','rev','time','auditId','verId'])
+        && d.uid == request.auth.uid
+        && d.agency is string && d.agency.size() > 0 && d.agency == adminDoc().get('agency', '')
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.hazard in adminDoc().get('types', [])
+        && d.areas is string && d.areas.size() <= 200
+        && d.desc is string && d.desc.size() > 0 && d.desc.size() <= 1500
+        && d.sourceUrl is string && d.sourceUrl.matches('https://.{4,300}')
+        && d.refNo is string && d.refNo.size() <= 40
+        && d.issuedAt is number
+        && d.expiresAt is number && d.expiresAt > d.issuedAt && d.expiresAt <= request.time.toMillis() + 1209600000 + 3600000
+        && d.status in ['published','withdrawn']
+        && d.rev is int && d.rev >= 1
+        && d.time == request.time
+        && d.verId is string && d.verId != ''
+        && existsAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId))
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.advisoryId == advid
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.rev == d.rev
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.title == d.title
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.desc == d.desc
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.sourceUrl == d.sourceUrl
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.expiresAt == d.expiresAt
+        && getAfter(/databases/$(database)/documents/advisoryVersions/$(d.verId)).data.status == d.status
+        && auditOkFor(advid, d.auditId);
+    }
     // An agency action on a report must come with an audit entry written in the same batch.
     function auditOk(id) {
       return request.resource.data.get('auditId', '') is string
@@ -105,6 +142,72 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
+    // Agency assessments: one per agency per report (id = reportId_AGENCY), kept apart from the community report.
+    // Public to read. Only an agency account can write, only for hazard types it covers, and never delete.
+    match /assessments/{asid} {
+      allow read: if true;
+      allow create, update: if request.auth != null && isAgency()
+        && request.resource.data.keys().hasAll(['reportId','agency','uid','status','note','time','auditId'])
+        && request.resource.data.keys().hasOnly(['reportId','agency','uid','status','note','time','auditId'])
+        && request.resource.data.reportId is string
+        && request.resource.data.reportId.matches('[A-Za-z0-9_-]{1,40}')
+        && request.resource.data.agency is string
+        && request.resource.data.agency.size() > 0 && request.resource.data.agency.size() <= 60
+        && !request.resource.data.agency.matches('.*/.*')
+        && request.resource.data.agency == adminDoc().get('agency', '')
+        && asid == request.resource.data.reportId + '_' + request.resource.data.agency
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status in ['under_review','corroborated','not_corroborated','duplicate','unable']
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.time == request.time
+        && exists(/databases/$(database)/documents/reports/$(request.resource.data.reportId))
+        && get(/databases/$(database)/documents/reports/$(request.resource.data.reportId)).data.type in adminDoc().get('types', [])
+        && auditOkFor(request.resource.data.reportId, request.resource.data.auditId);
+      allow delete: if false;
+    }
+
+    // Official advisories. Public to read. Only an agency account can publish or revise, only under its own
+    // agency name and only for hazard types it covers. Nobody deletes. The owner can withdraw one.
+    match /advisories/{advId} {
+      allow read: if true;
+      allow create: if request.auth != null && isAgency()
+        && advId.matches('[A-Za-z0-9_-]{1,40}')
+        && advOk(request.resource.data, advId)
+        && request.resource.data.rev == 1
+        && request.resource.data.issuedAt <= request.time.toMillis() + 3600000
+        && request.resource.data.issuedAt >= request.time.toMillis() - 3600000;
+      allow update: if request.auth != null && (
+        (isAgency()
+          && resource.data.agency == adminDoc().get('agency', '')
+          && advOk(request.resource.data, advId)
+          && request.resource.data.rev == resource.data.rev + 1
+          && request.resource.data.issuedAt == resource.data.issuedAt)
+        || (isOwner()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','time','auditId'])
+          && request.resource.data.status == 'withdrawn'
+          && request.resource.data.time == request.time
+          && auditOkFor(advId, request.resource.data.auditId))
+      );
+      allow delete: if false;
+    }
+
+    // Every published revision is kept here. Create only.
+    match /advisoryVersions/{verId} {
+      allow read: if true;
+      allow create: if request.auth != null && isAgency()
+        && request.resource.data.keys().hasAll(['advisoryId','rev','agency','uid','title','hazard','areas','desc','sourceUrl','refNo','expiresAt','status','time'])
+        && request.resource.data.keys().hasOnly(['advisoryId','rev','agency','uid','title','hazard','areas','desc','sourceUrl','refNo','expiresAt','status','time'])
+        && request.resource.data.advisoryId is string && request.resource.data.advisoryId.matches('[A-Za-z0-9_-]{1,40}')
+        && request.resource.data.rev is int && request.resource.data.rev >= 1
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.agency == adminDoc().get('agency', '')
+        && request.resource.data.title is string && request.resource.data.title.size() <= 120
+        && request.resource.data.desc is string && request.resource.data.desc.size() <= 1500
+        && request.resource.data.sourceUrl is string && request.resource.data.sourceUrl.size() <= 320
+        && request.resource.data.time == request.time;
+      allow update, delete: if false;
+    }
+
     // Audit log: admins and agencies can only add entries. Only the owner can read. Nobody can edit or delete.
     match /audit/{aid} {
       allow read: if isOwner();
@@ -112,9 +215,9 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['uid','agency','action','targetType','targetId','time'])
         && request.resource.data.keys().hasOnly(['uid','agency','action','targetType','targetId','note','time'])
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN','DELETE','FLAGS_DISMISS']
-        && (isOwner() || request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN'])
-        && request.resource.data.targetType == 'report'
+        && request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN','ASSESS','ADVISORY_NEW','ADVISORY_EDIT','ADVISORY_WITHDRAW','DELETE','FLAGS_DISMISS']
+        && (isOwner() || request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN','ASSESS','ADVISORY_NEW','ADVISORY_EDIT','ADVISORY_WITHDRAW'])
+        && request.resource.data.targetType in ['report','advisory']
         && request.resource.data.targetId is string && request.resource.data.targetId.size() <= 40
         && request.resource.data.agency is string && request.resource.data.agency.size() <= 60
         && (isOwner() || request.resource.data.agency == adminDoc().get('agency', ''))

@@ -23,6 +23,10 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - **Agency role and audit log (step 1), nothing run live yet.** Publish the new rules, then with a test agency account (`role: agency`, `agency: PAGASA`, `types: [flood, typhoon]`) check: verify/resolve a flood report works; verify a quake report is rejected; delete is rejected; the audit log shows the entries (owner only); the agency cannot read or edit `audit`; the owner still works as before. Also check that the access-call limit in the update rule is not hit (an agency update reads the admin doc and the audit doc).
 - Existing admin documents must still work as owner: sign in with your current admin and verify, resolve, delete, and open the audit log.
 
+- **Agency assessments (step 2), nothing run live yet.** Publish the new rules, then as the PAGASA test account: assess a flood report (saves, shows in details and feed); try a quake report (form must not show, and a forced write is rejected); change the status and confirm the same document updates; as a second agency account assess the same report and confirm both show; as owner confirm the audit log shows `ASSESS`. Check the `asStatus`/`asNote` fields keep your typing when a snapshot arrives.
+
+- **Official advisories (step 3), nothing run live yet.** Publish the rules (the Rules editor will flag any syntax error), then as the PAGASA test account: publish an advisory for an allowed hazard (appears with OFFICIAL badge); try a hazard outside `types` (must not be offered or must be rejected); edit it and confirm Revision 2 and that `advisoryVersions` now has two documents; withdraw it and confirm it moves under "Expired and withdrawn"; as owner withdraw another advisory; confirm the audit log shows the `ADVISORY_*` entries; confirm a signed-out visitor sees the advisories. Check the form keeps your typing when a snapshot arrives, and the mobile News tab shows the section.
+
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
 - App Check: client activates with an Enterprise key; **enforcement status unknown**. 
@@ -42,7 +46,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 10. **Admin visible to all in Settings** (UI only; enforcement is in the rules, which is correct).
 
 ## Pending Features (requested, not in code)
-- Agency Portal steps 2 to 5: agency assessments, official advisories, fake-agency security test, agency guide. (Step 1 roles and audit log is done.)
+- Agency Portal steps 4 and 5: fake-agency security test, agency guide. (Steps 1 to 3 are built; step 1 confirmed working by the owner, steps 2 and 3 untested.) Advisories on the map and notifications are not built.
 - PAGASA wind-signal / typhoon-signal layer (mockup only).
 - Making the repo private: unknown whether done. Vercel hosting is confirmed. If the repo is private, the old GitHub Pages link is offline and installed phone copies from it must be reinstalled from the Vercel link.
 

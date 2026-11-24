@@ -122,6 +122,30 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 - Tests run: `node --check` on app.js and cloud.js, and a mock test of the role/audit logic in cloud.js (12 checks passed). The rules and the UI were **not** run (no Firestore emulator or browser here).
 - Not done yet (later steps): agency assessments, official advisories, agency registry screens.
 
+## Agency assessments (Agency Portal step 2) - Date unknown
+### Added
+- `assessments` collection: one document per agency per report (`<reportId>_<AGENCY>`), public to read, written only by agency accounts for their own hazard types. Statuses: under review, corroborated, not corroborated, duplicate, unable to verify, plus an optional public note. **IMPLEMENTED, NOT TESTED against live Firebase**
+- Report details: "Agency assessments" section (all agencies' assessments, a reminder that "not corroborated" does not mean false) and, for an eligible agency account, a form to save its assessment. The feed row shows a short tag such as "PAGASA: Corroborated".
+- New audit action `ASSESS` (status stored in the audit note), required by the rules for every assessment write.
+### Technical Changes
+- Files modified: `firestore.rules` (new `assessments` match, `auditOkFor`, `ASSESS` action), `js/cloud.js` (`watchAssess`, `saveAssess`, audit note), `js/app.js` (`assessHtml`, `trustLine`, assess handler, audit log row shows note), `sw.js` (cache `v19` to `v20`), the three docs. Rules must be re-published by hand.
+### Notes
+- Only the latest assessment per agency is stored; history is in the audit log (owner reads it).
+- The original community report is not changed, and the old `verified` flag still works separately.
+- Deleting a report leaves its assessments behind (rules forbid deletes); they are not shown.
+- Tests: `node --check` passed and the mock test of `saveAssess` passed (15 checks in total). The rules and the screens were not run.
+
+## Official advisories (Agency Portal step 3) - Date unknown
+### Added
+- `advisories` and `advisoryVersions` collections. An agency account can publish an advisory for a hazard type it covers, revise it (each revision is kept), and withdraw it. Required: title, text, https source link. Optional: areas, reference number. Validity 6 hours to 14 days. **IMPLEMENTED, NOT TESTED against live Firebase**
+- "Official advisories" section on the page (above the news; on phones inside the News tab) with an OFFICIAL badge, agency, validity, revision, original-source link; expired and withdrawn advisories are listed separately. Agency accounts get a "Publish advisory" button and Edit/Withdraw on their own advisories; the owner can withdraw any advisory.
+- Audit actions `ADVISORY_NEW`, `ADVISORY_EDIT`, `ADVISORY_WITHDRAW` (target type `advisory`).
+### Technical Changes
+- Files modified: `firestore.rules`, `js/cloud.js` (`watchAdv`, `saveAdv`, `ownerWithdraw`), `js/app.js`, `index.html` (`#advSec`), `css/style.css` (advisory styles, mobile pane rules), `sw.js` (cache `v20` to `v21`), the three docs. Rules must be re-published by hand.
+### Notes
+- Not done: advisories are not drawn on the map, no notifications, no attachments, no scheduled advisories.
+- Tests: `node --check` passed; mock test of `saveAdv`/`ownerWithdraw` passed (20 checks in total). The rules and screens were not run. Rule brace/paren/bracket counts balance, but the Firebase rules editor is the real syntax check.
+
 ## [Audit] - Documentation created
 ### Added
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.

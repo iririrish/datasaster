@@ -81,9 +81,9 @@
     }).then(function () { cb(out.join('\n')); }, function () { cb(out.join('\n')); });
   };
   /* Audit log: every admin or agency action is written in the same batch as the change. Only the owner can read the log; nobody can edit or delete entries. */
-  C.auditRef = function (batch, action, targetId) {
+  C.auditRef = function (batch, action, targetId, note, ttype) {
     var ref = db.collection('audit').doc();
-    batch.set(ref, { uid: C.uid, agency: C.owner ? 'OWNER' : C.agency, action: action, targetType: 'report', targetId: targetId, note: '', time: firebase.firestore.FieldValue.serverTimestamp() });
+    batch.set(ref, { uid: C.uid, agency: C.owner ? 'OWNER' : C.agency, action: action, targetType: ttype || 'report', targetId: targetId, note: String(note || '').substring(0, 300), time: firebase.firestore.FieldValue.serverTimestamp() });
     return ref;
   };
   /* asAdmin = true when acting on someone else's report. The author resolving their own report is not an admin action. */
@@ -103,6 +103,41 @@
     var ref = db.collection('reports').doc(docId), b;
     if (asAdmin && C.owner) { b = db.batch(); C.auditRef(b, 'DELETE', docId); b.delete(ref); b.commit().catch(function (er) { fail(er); }); }
     else { ref.delete().catch(function (er) { fail(er); }); }
+  };
+  /* Agency assessments: public to read, written only by agency accounts (see firestore.rules). One document per agency per report. */
+  C.watchAssess = function (onList) {
+    db.collection('assessments').orderBy('time', 'desc').limit(400).onSnapshot(function (snap) {
+      var list = [];
+      snap.forEach(function (d) { var x = d.data(); x._id = d.id; list.push(x); });
+      onList(list);
+    }, function () {});
+  };
+  C.saveAssess = function (reportId, status, note, fail) {
+    var b = db.batch(), a = C.auditRef(b, 'ASSESS', reportId, status);
+    b.set(db.collection('assessments').doc(reportId + '_' + C.agency), { reportId: reportId, agency: C.agency, uid: C.uid, status: status, note: String(note || '').substring(0, 500), time: firebase.firestore.FieldValue.serverTimestamp(), auditId: a.id });
+    b.commit().catch(function (er) { fail(er); });
+  };
+  /* Official advisories (public to read). saveAdv writes the advisory, a permanent revision record and an audit entry in one batch. */
+  C.watchAdv = function (onList) {
+    db.collection('advisories').orderBy('time', 'desc').limit(100).onSnapshot(function (snap) {
+      var list = [];
+      snap.forEach(function (d) { var x = d.data(); x._id = d.id; list.push(x); });
+      onList(list);
+    }, function () {});
+  };
+  C.saveAdv = function (a, fail) {
+    var b = db.batch(), aref = a.id ? db.collection('advisories').doc(a.id) : db.collection('advisories').doc(), vref = db.collection('advisoryVersions').doc(),
+        rev = (a.rev || 0) + 1, ts = firebase.firestore.FieldValue.serverTimestamp(),
+        act = a.status === 'withdrawn' ? 'ADVISORY_WITHDRAW' : (a.id ? 'ADVISORY_EDIT' : 'ADVISORY_NEW'),
+        au = C.auditRef(b, act, aref.id, 'rev ' + rev, 'advisory');
+    b.set(vref, { advisoryId: aref.id, rev: rev, agency: C.agency, uid: C.uid, title: a.title, hazard: a.hazard, areas: a.areas, desc: a.desc, sourceUrl: a.sourceUrl, refNo: a.refNo, expiresAt: a.expiresAt, status: a.status, time: ts });
+    b.set(aref, { agency: C.agency, uid: C.uid, title: a.title, hazard: a.hazard, areas: a.areas, desc: a.desc, sourceUrl: a.sourceUrl, refNo: a.refNo, issuedAt: a.issuedAt || Date.now(), expiresAt: a.expiresAt, status: a.status, rev: rev, time: ts, auditId: au.id, verId: vref.id });
+    b.commit().catch(function (er) { fail(er); });
+  };
+  C.ownerWithdraw = function (advId, fail) {
+    var b = db.batch(), au = C.auditRef(b, 'ADVISORY_WITHDRAW', advId, 'owner', 'advisory');
+    b.update(db.collection('advisories').doc(advId), { status: 'withdrawn', time: firebase.firestore.FieldValue.serverTimestamp(), auditId: au.id });
+    b.commit().catch(function (er) { fail(er); });
   };
   C.listAudit = function (onList, fail) {
     db.collection('audit').orderBy('time', 'desc').limit(50).get().then(function (snap) {

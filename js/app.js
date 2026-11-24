@@ -228,8 +228,13 @@
     $('segs').innerHTML = h;
     if (barEl) { barEl.scrollLeft = barX; }
   }
+  var ASTAT = { under_review: 'Under review', corroborated: 'Corroborated', not_corroborated: 'Not corroborated', duplicate: 'Duplicate', unable: 'Unable to verify' };
+  var ASORDER = ['under_review', 'corroborated', 'not_corroborated', 'duplicate', 'unable'];
+  var assessAll = [];
+  function assessFor(cid) { var out = []; each(assessAll, function (a) { if (a.reportId === cid && ASTAT[a.status]) { out.push(a); } }); return out; }
   function trustLine(r) {
-    var s = esc(r.srcLabel) + (r.demo ? ' (sample)' : '');
+    var s = esc(r.srcLabel) + (r.demo ? ' (sample)' : ''), al, k;
+    if (r.cloud) { al = assessFor(r.cid); if (al.length) { s += ' \u00b7 <b>'; for (k = 0; k < al.length && k < 2; k++) { s += (k ? ', ' : '') + esc(String(al[k].agency).substring(0, 30)) + ': ' + ASTAT[al[k].status]; } s += '</b>'; } }
     if (r.trust === 'unverified') { s += ' \u00b7 <span class="warn">Unverified</span>'; }
     if (r.pending) { s += ' \u00b7 <span class="warn">Pending upload</span>'; }
     return s;
@@ -855,6 +860,7 @@
     if (r.lines) { h += '<h3>' + esc(r.obsTitle) + '</h3>' + kv(r.lines); }
     else if (r.obs && r.obs.length) { h += '<h3>' + esc(r.obsTitle || 'Observations') + '</h3>' + kv(r.obs); }
     if (r.cloud && CLOUD.admin) { var fl = flagsFor(r.cid), fr2 = []; each(fl.slice(0, 5), function (f) { fr2.push(['Flag', f.reason]); }); if (fl.length) { h += '<h3>Flags (' + fl.length + ')</h3>' + kv(fr2); } }
+    if (r.cloud) { h += assessHtml(r); }
     h += '<p class="m" style="margin-top:16px">' + noteFor(r) + '</p>';
     h += '<div class="acts"><button class="btn primary" data-fly="' + r.id + '">Show on map</button>';
     h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">' + icon('nav', 14) + ' Directions</a>';
@@ -1251,7 +1257,7 @@
   function onCloudAuth() {
     if (CLOUD.admin && !flagsOn) { flagsOn = true; CLOUD.watchFlags(function (l) { flagList = l; if (viewing === 'settings' && !(document.activeElement && document.activeElement.tagName === 'INPUT')) { renderSettings(); } if ($('detailBg').className.indexOf('show') > -1 && detailId && byId(detailId)) { openDetail(detailId); } }, function () { flagsOn = false; }); }
     if (!CLOUD.admin && flagsOn) { CLOUD.stopFlags(); flagsOn = false; flagList = []; }
-    cloudRefresh(); tryHash();
+    cloudRefresh(); tryHash(); renderAdv();
   }
   function csvCell(v) { var q = String(v == null ? '' : v).replace(/\r?\n/g, ' '); if (/^[=+\-@\t]/.test(q)) { q = "'" + q; } return '"' + q.replace(/"/g, '""') + '"'; }
   function exportCsv() {
@@ -1273,6 +1279,14 @@
     if (!cloudOn()) { return; }
     $('rHint').textContent = 'Reports are shared with everyone who opens this app and shown as unverified.';
     CLOUD.start(onCloudData, onCloudAuth, function () { toast('Shared reports are unavailable right now'); });
+    if (CLOUD.watchAdv) { CLOUD.watchAdv(function (l) { advAll = l; renderAdvList(); }); }
+    if (CLOUD.watchAssess) {
+      CLOUD.watchAssess(function (l) {
+        var ae = document.activeElement;
+        assessAll = l; refresh();
+        if ($('detailBg').className.indexOf('show') > -1 && detailId && byId(detailId) && !(ae && /^(TEXTAREA|SELECT|INPUT)$/.test(ae.tagName) && $('detailBox').contains(ae))) { openDetail(detailId); }
+      });
+    }
   }
 
   function saveReport() {
@@ -1336,6 +1350,25 @@
     refresh(); toast('Report deleted');
   }
   var auditList = null, auditBusy = false;
+  /* Agency assessments shown in a report's details. Separate from the community report itself. */
+  function assessHtml(r) {
+    var al = assessFor(r.cid), h = '', mine = null, o = '';
+    h += '<h3>Agency assessments</h3>';
+    if (!al.length) { h += '<div class="m">No agency has assessed this report yet.</div>'; }
+    each(al, function (a) {
+      var ms = a.time && a.time.toMillis ? a.time.toMillis() : 0;
+      if (CLOUD.agency && a.agency === CLOUD.agency) { mine = a; }
+      h += '<div class="trow"><div><b>' + esc(a.agency) + ': ' + ASTAT[a.status] + '</b><small>' + (ms ? fmtFull(ms) : 'saving') + (a.note ? ' \u00b7 ' + esc(a.note) : '') + '</small></div></div>';
+    });
+    h += '<div class="m">An assessment is the agency\'s view and is kept apart from the community report. "Not corroborated" does not mean the report is false.</div>';
+    if (CLOUD.role === 'agency' && CLOUD.agency && CLOUD.agency.indexOf('/') < 0 && CLOUD.can(r.type)) {
+      each(ASORDER, function (k) { o += '<option value="' + k + '"' + (mine && mine.status === k ? ' selected' : '') + '>' + ASTAT[k] + '</option>'; });
+      h += '<label class="l" for="asStatus">Your assessment (' + esc(CLOUD.agency) + ')</label><select id="asStatus">' + o + '</select>';
+      h += '<label class="l" for="asNote">Public note (optional, up to 500 characters)</label><textarea id="asNote" maxlength="500">' + esc(mine ? mine.note : '') + '</textarea>';
+      h += '<div class="acts"><button class="btn primary" data-assess="' + r.id + '">Save assessment</button></div>';
+    }
+    return h;
+  }
   function agencyNote() {
     var t = [];
     each(CLOUD.types, function (k) { t.push(TSHORT[k] || k); });
@@ -1346,10 +1379,56 @@
     if (auditList && !auditList.length) { h += '<div class="trow"><div><small>No actions logged yet.</small></div></div>'; }
     each(auditList || [], function (a) {
       var ms = a.time && a.time.toMillis ? a.time.toMillis() : 0;
-      h += '<div class="trow"><div><b>' + esc(a.action) + ' &middot; ' + esc(a.agency) + '</b><small>' + (ms ? fmtFull(ms) : 'pending') + ' &middot; report ' + esc(a.targetId) + '</small></div></div>';
+      h += '<div class="trow"><div><b>' + esc(a.action) + ' &middot; ' + esc(a.agency) + '</b><small>' + (ms ? fmtFull(ms) : 'pending') + ' &middot; ' + esc(a.targetType || 'report') + ' ' + esc(a.targetId) + (a.note ? ' &middot; ' + esc(a.note) : '') + '</small></div></div>';
     });
     return h;
   }
+  /* Official advisories: posted by agency accounts, shown to everyone in their own section. */
+  var advAll = [], advForm = null;
+  var ADV_HOURS = [[6, '6 hours'], [12, '12 hours'], [24, '1 day'], [48, '2 days'], [72, '3 days'], [168, '7 days'], [336, '14 days']];
+  function canAdv() { return !!(cloudOn() && CLOUD.role === 'agency' && CLOUD.agency && CLOUD.agency.indexOf('/') < 0 && CLOUD.types.length); }
+  function advActive(a) { return a.status === 'published' && a.expiresAt > Date.now(); }
+  function advById(id) { var f = null; each(advAll, function (a) { if (a._id === id) { f = a; } }); return f; }
+  function advCard(a) {
+    var st = a.status === 'withdrawn' ? 'Withdrawn' : (a.expiresAt > Date.now() ? 'Active' : 'Expired'), ms = a.time && a.time.toMillis ? a.time.toMillis() : 0, h = '';
+    h += '<div class="adv' + (st === 'Active' ? '' : ' old') + '"><div class="advh"><span class="advbadge">OFFICIAL</span><b>' + esc(a.agency) + '</b><span class="m">' + esc(TSHORT[a.hazard] || a.hazard) + ' \u00b7 ' + st + '</span></div>';
+    h += '<h3>' + esc(a.title) + '</h3>';
+    h += '<div class="m">' + (a.areas ? 'Areas: ' + esc(a.areas) + ' \u00b7 ' : '') + 'Valid until ' + fmtFull(a.expiresAt) + ' \u00b7 Revision ' + esc(a.rev) + (ms ? ' \u00b7 Updated ' + fmtFull(ms) : '') + '</div>';
+    h += '<p>' + esc(a.desc) + '</p>';
+    h += '<div class="m">' + (/^https:\/\//.test(a.sourceUrl) ? '<a href="' + esc(a.sourceUrl) + '" target="_blank" rel="noopener noreferrer">Original source</a>' : 'No valid source link') + (a.refNo ? ' \u00b7 Ref. ' + esc(a.refNo) : '') + '</div>';
+    if (a.status === 'published' && ((canAdv() && a.agency === CLOUD.agency) || (cloudOn() && CLOUD.owner))) {
+      h += '<div class="acts">' + (canAdv() && a.agency === CLOUD.agency ? '<button class="btn sm" data-advedit="' + a._id + '">Edit (new revision)</button>' : '') + '<button class="btn sm danger" data-advwd="' + a._id + '">Withdraw</button></div>';
+    }
+    return h + '</div>';
+  }
+  function renderAdvList() {
+    var el = $('advList'), act = [], old = [], h = '';
+    if (!el) { return; }
+    each(advAll, function (a) { if (advActive(a)) { act.push(a); } else { old.push(a); } });
+    each(act, function (a) { h += advCard(a); });
+    if (!act.length) { h += '<div class="empty">' + (cloudOn() ? 'No active official advisories right now.' : 'Official advisories need the shared connection, which is not available.') + '</div>'; }
+    if (old.length) { h += '<details><summary class="m" style="padding:10px 4px;cursor:pointer">Expired and withdrawn (' + old.length + ')</summary>'; each(old, function (a) { h += advCard(a); }); h += '</details>'; }
+    el.innerHTML = h;
+  }
+  function renderAdvForm() {
+    var el = $('advForm'), v, o = '', h;
+    if (!el) { return; }
+    if (!advForm || !canAdv()) { el.innerHTML = ''; return; }
+    v = advForm.v || {};
+    h = '<label class="l" for="avHaz">Hazard</label><select id="avHaz">';
+    each(CLOUD.types, function (k) { if (TSHORT[k]) { h += '<option value="' + k + '"' + (v.hazard === k ? ' selected' : '') + '>' + TSHORT[k] + '</option>'; } });
+    h += '</select><label class="l" for="avTitle">Title</label><input type="text" id="avTitle" maxlength="120" value="' + esc(v.title || '') + '">';
+    h += '<label class="l" for="avAreas">Affected areas</label><input type="text" id="avAreas" maxlength="200" value="' + esc(v.areas || '') + '" placeholder="Provinces or cities">';
+    h += '<label class="l" for="avDesc">Advisory text</label><textarea id="avDesc" maxlength="1500">' + esc(v.desc || '') + '</textarea>';
+    h += '<label class="l" for="avUrl">Original source link (https, required)</label><input type="url" id="avUrl" maxlength="300" value="' + esc(v.sourceUrl || '') + '" placeholder="https://">';
+    h += '<label class="l" for="avRef">Official reference or bulletin number (optional)</label><input type="text" id="avRef" maxlength="40" value="' + esc(v.refNo || '') + '">';
+    each(ADV_HOURS, function (x) { o += '<option value="' + x[0] + '"' + (x[0] === 24 ? ' selected' : '') + '>' + x[1] + '</option>'; });
+    h += '<label class="l" for="avHrs">Valid for (from now)</label><select id="avHrs">' + o + '</select>';
+    h += '<div class="hint">' + (advForm.id ? 'Saving creates a new revision. The earlier text is kept in the history.' : 'Publish only information your agency has issued. It appears publicly under ' + esc(CLOUD.agency) + '.') + '</div>';
+    h += '<div class="acts" style="margin-top:10px"><button class="btn primary" data-advsave="1">' + (advForm.id ? 'Save revision' : 'Publish advisory') + '</button><button class="btn" data-advcancel="1">Cancel</button></div>';
+    el.innerHTML = h;
+  }
+  function renderAdv() { var b = $('advNew'); if (b) { b.hidden = !(canAdv() && !advForm); } renderAdvForm(); renderAdvList(); }
   var toastT = null;
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.className = 'toast show'; if (toastT) { clearTimeout(toastT); } toastT = setTimeout(function () { t.className = 'toast'; }, 2200); }
 
@@ -1452,7 +1531,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1504,6 +1583,42 @@
     if (n === 'data-export') { if (CLOUD.admin) { exportCsv(); } return; }
     if (n === 'data-flagopen') { showView('dash'); select(v, true); openDetail(v); return; }
     if (n === 'data-flagdismiss') { if (!CLOUD.owner) { return; } CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
+    if (n === 'data-advnew') { if (canAdv()) { advForm = { id: '', rev: 0, issuedAt: 0, v: {} }; renderAdv(); } return; }
+    if (n === 'data-advcancel') { advForm = null; renderAdv(); return; }
+    if (n === 'data-advedit') {
+      var ea = advById(v);
+      if (ea && canAdv() && ea.agency === CLOUD.agency && ea.status === 'published') { advForm = { id: ea._id, rev: ea.rev, issuedAt: ea.issuedAt, v: ea }; renderAdv(); }
+      return;
+    }
+    if (n === 'data-advwd') {
+      var wa = advById(v);
+      if (!wa || wa.status !== 'published' || !window.confirm('Withdraw this advisory? It stays in the history.')) { return; }
+      if (CLOUD.owner) { CLOUD.ownerWithdraw(wa._id, cloudFail); }
+      else if (canAdv() && wa.agency === CLOUD.agency) { CLOUD.saveAdv({ id: wa._id, rev: wa.rev, issuedAt: wa.issuedAt, title: wa.title, hazard: wa.hazard, areas: wa.areas, desc: wa.desc, sourceUrl: wa.sourceUrl, refNo: wa.refNo, expiresAt: wa.expiresAt, status: 'withdrawn' }, cloudFail); }
+      toast('Advisory withdrawn');
+      return;
+    }
+    if (n === 'data-advsave') {
+      if (!canAdv() || !advForm || !$('avTitle')) { return; }
+      var trim = function (x) { return String(x || '').replace(/^\s+|\s+$/g, ''); };
+      var av = { id: advForm.id, rev: advForm.rev, issuedAt: advForm.issuedAt, hazard: $('avHaz').value, title: trim($('avTitle').value), areas: trim($('avAreas').value), desc: trim($('avDesc').value), sourceUrl: trim($('avUrl').value), refNo: trim($('avRef').value), status: 'published' };
+      if (!av.title || !av.desc) { alert('Please fill in the title and the advisory text.'); return; }
+      if (!/^https:\/\/\S{4,300}$/.test(av.sourceUrl)) { alert('The original source link must start with https://'); return; }
+      if (CLOUD.types.indexOf(av.hazard) < 0) { return; }
+      av.expiresAt = Date.now() + parseInt($('avHrs').value, 10) * 3600000;
+      if (!av.id) { av.issuedAt = Date.now(); }
+      CLOUD.saveAdv(av, cloudFail);
+      advForm = null; renderAdv(); toast(av.id ? 'Revision saved' : 'Advisory published');
+      return;
+    }
+    if (n === 'data-assess') {
+      var asr = cloudById(v) || byId(v);
+      if (asr && asr.cloud && CLOUD.role === 'agency' && CLOUD.can(asr.type) && $('asStatus')) {
+        CLOUD.saveAssess(asr.cid, $('asStatus').value, $('asNote') ? $('asNote').value : '', cloudFail);
+        toast('Assessment saved');
+      }
+      return;
+    }
     if (n === 'data-auditload') {
       if (!CLOUD.owner || auditBusy) { return; }
       auditBusy = true; renderSettings();
@@ -1584,7 +1699,7 @@
     $('newsRef').innerHTML = icon('refresh', 13) + ' Refresh';
     $('icS').innerHTML = icon('search', 15);
     $('rX').innerHTML = icon('x');
-    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews();
+    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews(); renderAdv();
     initMap(); refresh(); applyLayers(); renderLegend();
 
     $('q').addEventListener('input', function () { query = this.value.toLowerCase(); refresh(); });
