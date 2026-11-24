@@ -27,6 +27,8 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 
 - **Official advisories (step 3), nothing run live yet.** Publish the rules (the Rules editor will flag any syntax error), then as the PAGASA test account: publish an advisory for an allowed hazard (appears with OFFICIAL badge); try a hazard outside `types` (must not be offered or must be rejected); edit it and confirm Revision 2 and that `advisoryVersions` now has two documents; withdraw it and confirm it moves under "Expired and withdrawn"; as owner withdraw another advisory; confirm the audit log shows the `ADVISORY_*` entries; confirm a signed-out visitor sees the advisories. Check the form keeps your typing when a snapshot arrives, and the mobile News tab shows the section.
 
+- **Security test (step 4):** run `security-test.js` as the agency account and as a visitor (see `SECURITY_TEST.md`). Expected 17 PASS each. Until this passes, do not give real agencies accounts.
+
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
 - App Check: client activates with an Enterprise key; **enforcement status unknown**. 
@@ -46,7 +48,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 10. **Admin visible to all in Settings** (UI only; enforcement is in the rules, which is correct).
 
 ## Pending Features (requested, not in code)
-- Agency Portal steps 4 and 5: fake-agency security test, agency guide. (Steps 1 to 3 are built; step 1 confirmed working by the owner, steps 2 and 3 untested.) Advisories on the map and notifications are not built.
+- Agency Portal step 5: the one-page agency guide. (Step 4's test script exists but has not been run.) (Steps 1 to 3 are built; step 1 confirmed working by the owner, steps 2 and 3 untested.) Advisories on the map and notifications are not built.
 - PAGASA wind-signal / typhoon-signal layer (mockup only).
 - Making the repo private: unknown whether done. Vercel hosting is confirmed. If the repo is private, the old GitHub Pages link is offline and installed phone copies from it must be reinstalled from the Vercel link.
 
