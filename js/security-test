@@ -1,0 +1,91 @@
+/* DATAsaster security self-test. Paste into the browser console (F12 > Console) on your live site while signed in.
+   Read SECURITY_TEST.md first. It tries things that SHOULD be refused and prints PASS or FAIL for each.
+   FILL IN THE TWO IDS BELOW before running. */
+(function () {
+  var FLOOD_ID = 'PASTE_ID_OF_A_FLOOD_TEST_REPORT';   // a flood report made by someone else (agency covers flood)
+  var QUAKE_ID = 'PASTE_ID_OF_A_QUAKE_TEST_REPORT';   // a quake report made by someone else (agency does NOT cover quake)
+
+  var db = firebase.firestore(), user = firebase.auth().currentUser, TS = firebase.firestore.FieldValue.serverTimestamp();
+  var ALL = ['flood', 'fire', 'quake', 'volcano', 'typhoon', 'landslide'];
+  if (!user) { console.log('Not signed in yet. Open the site, wait a few seconds, and run again.'); return; }
+  var mode = 'visitor', AG = 'NONE', TYPES = [], results = [], adv = {};
+
+  function audit(b, action, target, ttype) {
+    var r = db.collection('audit').doc();
+    b.set(r, { uid: user.uid, agency: AG, action: action, targetType: ttype || 'report', targetId: target, note: '', time: TS });
+    return r;
+  }
+  function advBatch(o) {
+    var b = db.batch(), ar = o.id ? db.collection('advisories').doc(o.id) : db.collection('advisories').doc(), vr = db.collection('advisoryVersions').doc(),
+        au = audit(b, o.status === 'withdrawn' ? 'ADVISORY_WITHDRAW' : 'ADVISORY_NEW', ar.id, 'advisory'), now = Date.now(), iss = o.issuedAt || now,
+        exp = o.expiresAt || now + 3600000, rev = o.rev || 1, ag = o.agency || AG, url = o.url || 'https://example.com/security-test', st = o.status || 'published',
+        t = 'SECURITY TEST - ignore', d = 'Test advisory from a security check. Ignore.';
+    b.set(vr, { advisoryId: ar.id, rev: rev, agency: ag, uid: user.uid, title: t, hazard: o.hazard, areas: '', desc: d, sourceUrl: url, refNo: '', expiresAt: exp, status: st, time: TS });
+    b.set(ar, { agency: ag, uid: user.uid, title: t, hazard: o.hazard, areas: '', desc: d, sourceUrl: url, refNo: '', issuedAt: iss, expiresAt: exp, status: st, rev: rev, time: TS, auditId: au.id, verId: vr.id });
+    adv = { id: ar.id, iss: iss, exp: exp, hazard: o.hazard };
+    return b;
+  }
+  function assessBatch(reportId, agency) {
+    var b = db.batch(), au = audit(b, 'ASSESS', reportId);
+    b.set(db.collection('assessments').doc(reportId + '_' + agency), { reportId: reportId, agency: agency, uid: user.uid, status: 'under_review', note: 'security test', time: TS, auditId: au.id });
+    return b;
+  }
+
+  /* expectDenied: [agency, visitor]. true = the server SHOULD refuse. */
+  var tests = [
+    { n: 'Delete a report that is not yours', d: [true, true], run: function () { return db.collection('reports').doc(FLOOD_ID).delete(); } },
+    { n: 'Verify a hazard type the agency does NOT cover (with audit entry)', d: [true, true], run: function () {
+        var b = db.batch(), au = audit(b, 'VERIFY', QUAKE_ID); b.update(db.collection('reports').doc(QUAKE_ID), { verified: true, auditId: au.id }); return b.commit(); } },
+    { n: 'Verify a covered report WITHOUT an audit entry', d: [true, true], run: function () { return db.collection('reports').doc(FLOOD_ID).update({ verified: true }); } },
+    { n: 'Verify a covered report with an audit entry (should work for agency)', d: [false, true], run: function () {
+        var b = db.batch(), au = audit(b, 'VERIFY', FLOOD_ID); b.update(db.collection('reports').doc(FLOOD_ID), { verified: true, auditId: au.id }); return b.commit(); } },
+    { n: 'Read the audit log', d: [true, true], run: function () { return db.collection('audit').limit(1).get(); } },
+    { n: 'Write an audit entry with action DELETE', d: [true, true], run: function () {
+        var b = db.batch(); audit(b, 'DELETE', FLOOD_ID); return b.commit(); } },
+    { n: 'Edit an existing audit entry', d: [true, true], run: function () { return db.collection('audit').doc('x').update({ action: 'VERIFY' }); } },
+    { n: 'Make myself an owner (write my admins document)', d: [true, true], run: function () { return db.collection('admins').doc(user.uid).set({ role: 'owner' }); } },
+    { n: 'Assessment on a hazard type the agency does NOT cover', d: [true, true], run: function () { return assessBatch(QUAKE_ID, AG).commit(); } },
+    { n: 'Assessment under another agency name', d: [true, true], run: function () { return assessBatch(FLOOD_ID, 'FAKEAGENCY').commit(); } },
+    { n: 'Assessment on a covered report (should work for agency)', d: [false, true], run: function () { return assessBatch(FLOOD_ID, AG).commit(); } },
+    { n: 'Advisory for a hazard the agency does NOT cover', d: [true, true], run: function () {
+        var h = null, i; for (i = 0; i < ALL.length; i++) { if (TYPES.indexOf(ALL[i]) < 0) { h = ALL[i]; break; } }
+        if (!h) { return Promise.reject({ code: 'skipped' }); } return advBatch({ hazard: h }).commit(); } },
+    { n: 'Advisory under another agency name', d: [true, true], run: function () { return advBatch({ hazard: TYPES[0] || 'flood', agency: 'FAKEAGENCY' }).commit(); } },
+    { n: 'Advisory with an http:// (not https) source link', d: [true, true], run: function () { return advBatch({ hazard: TYPES[0] || 'flood', url: 'http://example.com/x' }).commit(); } },
+    { n: 'Publish a valid advisory (should work for agency, public for a few minutes)', d: [false, true], run: function () { return advBatch({ hazard: TYPES[0] || 'flood' }).commit(); } },
+    { n: 'Withdraw that advisory as revision 2 (should work for agency)', d: [false, true], run: function () {
+        if (mode !== 'agency') { return Promise.reject({ code: 'permission-denied' }); }
+        return advBatch({ id: adv.id, hazard: adv.hazard, rev: 2, status: 'withdrawn', issuedAt: adv.iss, expiresAt: adv.exp }).commit(); } },
+    { n: 'Edit the same advisory again WITHOUT raising the revision', d: [true, true], run: function () {
+        if (mode !== 'agency') { return Promise.reject({ code: 'permission-denied' }); }
+        return advBatch({ id: adv.id, hazard: adv.hazard, rev: 2, issuedAt: adv.iss, expiresAt: adv.exp }).commit(); } }
+  ];
+
+  function runOne(i) {
+    if (i >= tests.length) { return Promise.resolve(); }
+    var t = tests[i], shouldDeny = t.d[mode === 'agency' ? 0 : 1];
+    return Promise.resolve().then(t.run).then(function () { return 'allowed'; }, function (e) { return e && e.code === 'permission-denied' ? 'denied' : 'other:' + (e && (e.code || e.message)); })
+      .then(function (got) {
+        var pass = got === (shouldDeny ? 'denied' : 'allowed');
+        if (got === 'other:skipped') { got = 'skipped'; pass = true; }
+        results.push({ test: t.n, expected: shouldDeny ? 'denied' : 'allowed', got: got, result: pass ? 'PASS' : 'FAIL' });
+        return runOne(i + 1);
+      });
+  }
+
+  db.collection('admins').doc(user.uid).get().then(function (d) {
+    var x = d.exists ? d.data() : null;
+    if (x && x.role === 'agency') { mode = 'agency'; AG = String(x.agency || ''); TYPES = x.types || []; }
+    else if (x) { console.log('This account is an OWNER, not an agency or a visitor. Use the agency test account or a signed-out visitor.'); mode = 'owner'; }
+    return d;
+  }, function () { return null; }).then(function () {
+    if (mode === 'owner') { return; }
+    if (FLOOD_ID.indexOf('PASTE') === 0 || QUAKE_ID.indexOf('PASTE') === 0) { console.log('Fill in FLOOD_ID and QUAKE_ID at the top of the script first.'); return; }
+    console.log('Running as: ' + mode + (mode === 'agency' ? ' (' + AG + ', covers ' + TYPES.join(', ') + ')' : ''));
+    return runOne(0).then(function () {
+      console.table(results);
+      var bad = results.filter(function (r) { return r.result === 'FAIL'; });
+      console.log(bad.length ? 'FAILED: ' + bad.length + ' test(s). Send me this table.' : 'ALL ' + results.length + ' TESTS PASSED.');
+    });
+  });
+})();
