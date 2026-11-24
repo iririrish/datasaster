@@ -146,6 +146,14 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 - Not done: advisories are not drawn on the map, no notifications, no attachments, no scheduled advisories.
 - Tests: `node --check` passed; mock test of `saveAdv`/`ownerWithdraw` passed (20 checks in total). The rules and screens were not run. Rule brace/paren/bracket counts balance, but the Firebase rules editor is the real syntax check.
 
+## Security test script (Agency Portal step 4) - Date unknown
+### Added
+- `security-test.js` (paste into the browser console) and `SECURITY_TEST.md` (how to run it). 17 checks run as the agency test account and again as a visitor: deleting reports, verifying or assessing uncovered types, forging audit entries, reading or editing the audit log, becoming owner, advisories for uncovered hazards or other agencies, http source links, skipping the revision number. Three legitimate actions are checked as allowed for the agency.
+### Technical Changes
+- No app files changed, no cache bump. New files are documentation and a test tool only.
+### Notes
+- Script syntax-checked and its flow run against a mock only. **It has not been run against the live rules**; the real result is the owner's test. Firestore's rules emulator could not be used here (download blocked).
+
 ## [Audit] - Documentation created
 ### Added
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.
