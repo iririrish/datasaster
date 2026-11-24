@@ -152,7 +152,23 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 ### Technical Changes
 - No app files changed, no cache bump. New files are documentation and a test tool only.
 ### Notes
-- Script syntax-checked and its flow run against a mock only. **It has not been run against the live rules**; the real result is the owner's test. Firestore's rules emulator could not be used here (download blocked).
+- Agency-account run on the live project: **17 of 17 PASS** (after fixing a wrong test report id). The visitor run is still to do. Before that, the script had only been run against a mock. Firestore's rules emulator could not be used here (download blocked).
+
+## Agency guide (Agency Portal step 5) - Date unknown
+### Added
+- "DATAsaster Agency Guide": a one-to-two page document for agency representatives (what DATAsaster is and is not, what an agency account can and cannot do, how it appears publicly, agency responsibilities, what to expect, how to get started). Made as a Claude Doc; contact details are placeholders to fill in. Not part of the repo.
+### Notes
+- No code changed. The guide describes only features that exist (assessments, advisories, audit log); notifications, map overlays and an agency dashboard are not mentioned because they are not built.
+
+## Review reports screen - Date unknown
+### Added
+- Header button **Review** (shown only to signed-in admins and agencies) opening a separate "Review reports" screen. It lists every shared report of the hazard types the account covers (owner: all types), newest first, with filter buttons Needs review, Assessed (by us), Not resolved, Resolved, All and a hazard filter. A row opens the usual report details, where assessment, verify and resolve are done. Updates live when reports or assessments change. **IMPLEMENTED, NOT TESTED in a browser**
+### Why
+- Settings > Admin only showed "Flagged reports" (reports flagged by visitors). That list is not a list of all reports, which caused the confusion.
+### Technical Changes
+- Files modified: `index.html` (`#btnRev`, `#viewReview`), `js/app.js` (review functions, `showView`, hooks), `sw.js` (cache `v21` to `v22`), docs. No rules change, no new reads: it reuses the already loaded report list (latest 200).
+### Notes
+- Only community reports shared through Firebase appear (not sample or live-earthquake records). Reports older than the latest 200 do not appear.
 
 ## [Audit] - Documentation created
 ### Added

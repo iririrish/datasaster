@@ -27,7 +27,11 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 
 - **Official advisories (step 3), nothing run live yet.** Publish the rules (the Rules editor will flag any syntax error), then as the PAGASA test account: publish an advisory for an allowed hazard (appears with OFFICIAL badge); try a hazard outside `types` (must not be offered or must be rejected); edit it and confirm Revision 2 and that `advisoryVersions` now has two documents; withdraw it and confirm it moves under "Expired and withdrawn"; as owner withdraw another advisory; confirm the audit log shows the `ADVISORY_*` entries; confirm a signed-out visitor sees the advisories. Check the form keeps your typing when a snapshot arrives, and the mobile News tab shows the section.
 
-- **Security test (step 4):** run `security-test.js` as the agency account and as a visitor (see `SECURITY_TEST.md`). Expected 17 PASS each. Until this passes, do not give real agencies accounts.
+- **Security test (step 4):** the agency-account run passed 17 of 17 on the owner's live project (first run showed 2 FAILs caused by a wrong test report id, not by the rules). **Still to run: the visitor run in an incognito window.** Until both pass, do not give real agencies accounts. Re-run after every rules change.
+
+- **Steps 2 and 3 in practice:** the test confirmed the live rules accept agency verify, assessment, advisory publish and withdraw, so those paths work at rules level. The on-screen forms (assessment form, advisory form, mobile layout) still need a quick visual check.
+
+- **Review reports screen:** sign in as the PAGASA test account; the Review button should appear next to Settings; the list should show TEST flood and other flood/typhoon reports and no quake reports; filters and counts should change; opening a row should allow Save assessment; as owner the screen lists all types; signed out the button must not show; check it on a phone (icon only).
 
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
@@ -36,6 +40,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - News: depends on third-party proxies, with sample headlines as fallback.
 
 ## Known Bugs and Inconsistencies
+0. **App Check token error on the Vercel site:** console shows `appCheck/recaptcha-error`. Most likely the Vercel domain is missing from the reCAPTCHA key's allowed domains. Writes still work, so enforcement is off. Do not enforce App Check until Firebase shows verified requests for Firestore. (js/firebase-config.js, Google Cloud reCAPTCHA key)
 1. **Icons:** `icon-192.png` and `icon-512.png` are byte-identical and only 149x140 px (not square, not the declared sizes). Hurts installability, maskable icons and the `#logo` box. Replace with real square 192 and 512 PNGs. (manifest.webmanifest, sw.js)
 2. **Rate limit can be bypassed:** `canPost()` is satisfied by several `reports` creates in one batch with a single `users` write. Also resets with a new anonymous identity (clearing site data); App Check enforcement is the real defense. (firestore.rules)
 3. **Rules gaps:** lat/lng not range-checked; `resAt` and `obs` item types not checked. (firestore.rules)
@@ -48,7 +53,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 10. **Admin visible to all in Settings** (UI only; enforcement is in the rules, which is correct).
 
 ## Pending Features (requested, not in code)
-- Agency Portal step 5: the one-page agency guide. (Step 4's test script exists but has not been run.) (Steps 1 to 3 are built; step 1 confirmed working by the owner, steps 2 and 3 untested.) Advisories on the map and notifications are not built.
+- Agency Portal steps 1 to 5 are all built. Remaining: the incognito visitor run of the security test, a visual check of the assessment and advisory screens, filling the contact placeholders in the agency guide, and getting a real agency's agreement before activating any account. (Steps 1 to 3 are built; step 1 confirmed working by the owner, steps 2 and 3 untested.) Advisories on the map and notifications are not built.
 - PAGASA wind-signal / typhoon-signal layer (mockup only).
 - Making the repo private: unknown whether done. Vercel hosting is confirmed. If the repo is private, the old GitHub Pages link is offline and installed phone copies from it must be reinstalled from the Vercel link.
 

@@ -1188,6 +1188,7 @@
   }
   function cloudRefresh() {
     cloudBuild(); refresh();
+    if (viewing === 'review') { renderReview(); }
     if (viewing === 'settings' && !(document.activeElement && document.activeElement.tagName === 'INPUT')) { renderSettings(); }
     if ($('detailBg').className.indexOf('show') > -1 && detailId) { if (byId(detailId)) { openDetail(detailId); } else { $('detailBg').className = 'bg'; } }
   }
@@ -1257,7 +1258,7 @@
   function onCloudAuth() {
     if (CLOUD.admin && !flagsOn) { flagsOn = true; CLOUD.watchFlags(function (l) { flagList = l; if (viewing === 'settings' && !(document.activeElement && document.activeElement.tagName === 'INPUT')) { renderSettings(); } if ($('detailBg').className.indexOf('show') > -1 && detailId && byId(detailId)) { openDetail(detailId); } }, function () { flagsOn = false; }); }
     if (!CLOUD.admin && flagsOn) { CLOUD.stopFlags(); flagsOn = false; flagList = []; }
-    cloudRefresh(); tryHash(); renderAdv();
+    syncAdminUi(); cloudRefresh(); tryHash(); renderAdv();
   }
   function csvCell(v) { var q = String(v == null ? '' : v).replace(/\r?\n/g, ' '); if (/^[=+\-@\t]/.test(q)) { q = "'" + q; } return '"' + q.replace(/"/g, '""') + '"'; }
   function exportCsv() {
@@ -1284,6 +1285,7 @@
       CLOUD.watchAssess(function (l) {
         var ae = document.activeElement;
         assessAll = l; refresh();
+        if (viewing === 'review') { renderReview(); }
         if ($('detailBg').className.indexOf('show') > -1 && detailId && byId(detailId) && !(ae && /^(TEXTAREA|SELECT|INPUT)$/.test(ae.tagName) && $('detailBox').contains(ae))) { openDetail(detailId); }
       });
     }
@@ -1493,10 +1495,66 @@
     $('viewSettings').innerHTML = h;
     window.scrollTo(0, keepY);
   }
+  /* Review queue: every shared report the signed-in admin or agency may act on (owner: all hazard types). */
+  var reviewF = 'need', reviewT = 'all';
+  function reviewScope() { var out = []; each(cloudItems, function (r) { if (CLOUD.admin && CLOUD.can(r.type)) { out.push(r); } }); out.sort(function (a, b) { return b.time - a.time; }); return out; }
+  function myAssessed(r) {
+    var al = assessFor(r.cid), k;
+    if (CLOUD.role === 'agency') { for (k = 0; k < al.length; k++) { if (al[k].agency === CLOUD.agency) { return true; } } return false; }
+    return al.length > 0;
+  }
+  function reviewHit(r, f) {
+    if (f === 'need') { return !r.resolved && !myAssessed(r); }
+    if (f === 'done') { return myAssessed(r); }
+    if (f === 'open') { return !r.resolved; }
+    if (f === 'resolved') { return !!r.resolved; }
+    return true;
+  }
+  function renderReview() {
+    var el = $('viewReview'), scope, list = [], cnt = {}, h, tl = [], who;
+    if (!el || !CLOUD.admin) { return; }
+    scope = reviewScope();
+    each(CLOUD.owner ? ['flood', 'fire', 'quake', 'volcano', 'typhoon', 'landslide'] : CLOUD.types, function (k) { if (TSHORT[k]) { tl.push(k); } });
+    if (reviewT !== 'all' && tl.indexOf(reviewT) < 0) { reviewT = 'all'; }
+    each(scope, function (r) { if (reviewT === 'all' || r.type === reviewT) { list.push(r); } });
+    each(['need', 'done', 'open', 'resolved', 'all'], function (f) { cnt[f] = 0; each(list, function (r) { if (reviewHit(r, f)) { cnt[f]++; } }); });
+    who = CLOUD.owner ? 'Owner: all hazard types' : esc(CLOUD.agency) + ': ' + esc(tl.map(function (k) { return TSHORT[k]; }).join(', '));
+    h = '<div class="sec" style="padding-top:16px"><h2>Review reports <span class="sp"></span><button class="btn sm" data-rvrefresh="1">' + icon('refresh', 13) + ' Refresh</button></h2>';
+    h += '<div class="m" style="margin-bottom:10px">' + who + '. Shows the latest 200 shared reports of your hazard types. Open a report to assess, verify or resolve it.</div>';
+    h += '<div class="fsum" style="margin-bottom:8px">';
+    each([['need', 'Needs review'], ['done', CLOUD.owner ? 'Assessed' : 'Assessed by us'], ['open', 'Not resolved'], ['resolved', 'Resolved'], ['all', 'All']], function (x) {
+      h += '<button data-rvf="' + x[0] + '" class="' + (reviewF === x[0] ? 'on' : '') + '"><b>' + cnt[x[0]] + '</b> ' + x[1] + '</button><span class="m">\u00b7</span>';
+    });
+    h += '</div>';
+    if (tl.length > 1) {
+      h += '<div class="fsum" style="margin-bottom:10px"><span class="m">Hazard:</span><button data-rvt="all" class="' + (reviewT === 'all' ? 'on' : '') + '">All</button>';
+      each(tl, function (k) { h += '<button data-rvt="' + k + '" class="' + (reviewT === k ? 'on' : '') + '">' + TSHORT[k] + '</button>'; });
+      h += '</div>';
+    }
+    h += '<div style="border-top:1px solid var(--line)">';
+    var shown = 0;
+    each(list, function (r) {
+      var t = TYPES[r.type];
+      if (!reviewHit(r, reviewF) || !t) { return; }
+      shown++;
+      h += '<div class="row' + (r.resolved ? ' res' : '') + '" data-rvopen="' + r.id + '"><div>' + statusLine(r, t) + '<h3>' + esc(r.title) + '</h3><div class="m">' + esc(r.place) + '</div><div class="m">' + trustLine(r) + ' \u00b7 <button class="link" data-rvopen="' + r.id + '">Open</button></div></div></div>';
+    });
+    if (!shown) { h += '<div class="empty">' + (scope.length ? 'No reports in this list.' : 'No shared reports of your hazard types yet.') + '</div>'; }
+    h += '</div></div>';
+    el.innerHTML = h;
+  }
+  function syncAdminUi() {
+    var b = $('btnRev');
+    if (b) { b.hidden = !CLOUD.admin; }
+    if (!CLOUD.admin && viewing === 'review') { showView('dash'); }
+  }
   function showView(v) {
     viewing = v;
     $('viewDash').hidden = v !== 'dash';
     $('viewSettings').hidden = v !== 'settings';
+    $('viewReview').hidden = v !== 'review';
+    if (v === 'review') { renderReview(); }
+    $('btnRev').innerHTML = v === 'review' ? icon('back', 15) + '<span class="lbl"> Dashboard</span>' : icon('list', 15) + '<span class="lbl"> Review</span>';
     if (v === 'settings') { renderSettings(); }
     $('btnSet').innerHTML = v === 'settings' ? icon('back', 15) + '<span class="lbl"> Dashboard</span>' : icon('sliders', 15) + '<span class="lbl"> Settings</span>';
     window.scrollTo(0, 0);
@@ -1531,7 +1589,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1583,6 +1641,10 @@
     if (n === 'data-export') { if (CLOUD.admin) { exportCsv(); } return; }
     if (n === 'data-flagopen') { showView('dash'); select(v, true); openDetail(v); return; }
     if (n === 'data-flagdismiss') { if (!CLOUD.owner) { return; } CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
+    if (n === 'data-rvf') { reviewF = v; renderReview(); return; }
+    if (n === 'data-rvt') { reviewT = v; renderReview(); return; }
+    if (n === 'data-rvrefresh') { renderReview(); return; }
+    if (n === 'data-rvopen') { e.stopPropagation(); if (byId(v)) { openDetail(v); } return; }
     if (n === 'data-advnew') { if (canAdv()) { advForm = { id: '', rev: 0, issuedAt: 0, v: {} }; renderAdv(); } return; }
     if (n === 'data-advcancel') { advForm = null; renderAdv(); return; }
     if (n === 'data-advedit') {
@@ -1684,7 +1746,7 @@
       if (e.keyCode === 39) { lbStep(1); return; }
       return;
     }
-    if (e.keyCode === 27) { $('detailBg').className = 'bg'; if (viewing === 'settings') { showView('dash'); } closeReport(); endPick(); }
+    if (e.keyCode === 27) { $('detailBg').className = 'bg'; if (viewing === 'settings' || viewing === 'review') { showView('dash'); } closeReport(); endPick(); }
   });
   function bgClose(id, fn) { $(id).addEventListener('mousedown', function (e) { if (e.target === $(id)) { fn(); } }); }
 
@@ -1694,6 +1756,8 @@
     each(userItems, function (u) { u.own = true; u.trust = 'unverified'; u.srcLabel = u.srcLabel || 'Community report'; if (!u.obs) { u.obs = []; } });
     $('logo').innerHTML = icon('radar', 26);
     $('btnSet').innerHTML = icon('sliders', 15) + '<span class="lbl"> Settings</span>';
+    $('btnRev').innerHTML = icon('list', 15) + '<span class="lbl"> Review</span>';
+    $('btnRev').addEventListener('click', function () { showView(viewing === 'review' ? 'dash' : 'review'); });
     $('btnRep').innerHTML = icon('plus', 15) + '<span class="lbl"> Report incident</span>';
     $('btnLayers').innerHTML = icon('layers', 15) + ' Live layers';
     $('newsRef').innerHTML = icon('refresh', 13) + ' Refresh';
