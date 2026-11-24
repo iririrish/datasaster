@@ -861,8 +861,8 @@
     h += '<a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + r.lat + ',' + r.lng + '" style="text-decoration:none;color:inherit">Street view</a>';
     if (window.MAPS_EMBED_KEY) { h += '<button class="btn" data-sv="' + r.id + '">View street here</button>'; }
     if (r.link) { h += '<a class="btn" target="_blank" rel="noopener" href="' + esc(r.link) + '" style="text-decoration:none;color:inherit">Source page</a>'; }
-    if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button><button class="btn danger" data-del="' + r.id + '">' + (r.cloud && !r.mine ? 'Delete report (admin)' : 'Delete my report') + '</button>'; }
-    if (r.cloud && CLOUD.admin) { h += '<button class="btn" data-verify="' + r.id + '">' + (r.trust === 'verified' ? 'Remove verified' : 'Mark verified') + '</button>'; }
+    if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button>'; if (!r.cloud || r.mine || CLOUD.owner) { h += '<button class="btn danger" data-del="' + r.id + '">' + (r.cloud && !r.mine ? 'Delete report (admin)' : 'Delete my report') + '</button>'; } }
+    if (r.cloud && CLOUD.admin && CLOUD.can(r.type)) { h += '<button class="btn" data-verify="' + r.id + '">' + (r.trust === 'verified' ? 'Remove verified' : 'Mark verified') + '</button>'; }
     if (r.cloud) { h += '<button class="btn" data-share="' + r.id + '">Share link</button>'; }
     if (r.cloud && !r.mine) { h += flagged[r.cid] ? '<button class="btn" disabled>Flagged</button>' : '<button class="btn" data-flag="' + r.id + '">Flag report</button>'; }
     h += '</div><div id="svBox"></div>';
@@ -1176,7 +1176,7 @@
       if (d.obs && d.obs.length) { each(d.obs.slice(0, 12), function (o) { if (o && o.k != null) { obs.push([String(o.k).substring(0, 80), String(o.v).substring(0, 200)]); } }); }
       if (d.imgs && d.imgs.length) { each(d.imgs.slice(0, MAXPHOTOS), function (s) { if (typeof s === 'string' && s.length < 230000 && jpegRe.test(s)) { imgs.push(s); } }); }
       if (!imgs.length && typeof d.img === 'string' && d.img.length < 400000 && jpegRe.test(d.img)) { imgs.push(d.img); }
-      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!(CLOUD.admin || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : 'Community report', pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
+      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!((CLOUD.admin && CLOUD.can(d.type)) || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : 'Community report', pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
     });
     cloudItems = out;
   }
@@ -1317,7 +1317,7 @@
   }
   function toggleResolved(id) {
     var c = cloudById(id);
-    if (c) { CLOUD.setResolved(c.cid, !c.resolved, cloudFail); toast(c.resolved ? 'Reopened' : 'Marked as resolved'); return; }
+    if (c) { CLOUD.setResolved(c.cid, !c.resolved, cloudFail, !!(CLOUD.admin && !c.mine)); toast(c.resolved ? 'Reopened' : 'Marked as resolved'); return; }
     each(userItems, function (u) { if (u.id === id) { u.resolved = !u.resolved; u.resAt = u.resolved ? Date.now() : 0; toast(u.resolved ? 'Marked as resolved' : 'Reopened'); } });
     lsSet('datasaster_reports', userItems);
     refresh(); openDetail(id);
@@ -1325,12 +1325,30 @@
   function cloudById(id) { var i; for (i = 0; i < cloudItems.length; i++) { if (cloudItems[i].id === id && cloudItems[i].own) { return cloudItems[i]; } } return null; }
   function deleteReport(id) {
     var keep = [], c = cloudById(id);
+    var any = byId(id);
+    if (any && any.cloud && !c) { return; }
+    if (c && !c.mine && !CLOUD.owner) { return; }
     if (!window.confirm('Delete this report?')) { return; }
-    if (c) { CLOUD.remove(c.cid, cloudFail); if (CLOUD.admin) { CLOUD.dismissFlags(c.cid, cloudFail); } $('detailBg').className = 'bg'; if (selId === id) { selId = null; } toast('Report deleted'); return; }
+    if (c) { CLOUD.remove(c.cid, cloudFail, !!(CLOUD.owner && !c.mine)); if (CLOUD.owner && !c.mine) { CLOUD.dismissFlags(c.cid, cloudFail); } $('detailBg').className = 'bg'; if (selId === id) { selId = null; } toast('Report deleted'); return; }
     each(userItems, function (x) { if (x.id !== id) { keep.push(x); } });
     userItems = keep; lsSet('datasaster_reports', userItems);
     $('detailBg').className = 'bg'; if (selId === id) { selId = null; }
     refresh(); toast('Report deleted');
+  }
+  var auditList = null, auditBusy = false;
+  function agencyNote() {
+    var t = [];
+    each(CLOUD.types, function (k) { t.push(TSHORT[k] || k); });
+    return 'Agency account' + (CLOUD.agency ? ': ' + esc(CLOUD.agency) : '') + '. You can verify and resolve reports of: ' + (t.length ? esc(t.join(', ')) : 'no hazard types yet') + '. You cannot delete reports.';
+  }
+  function auditHtml() {
+    var h = '<div class="trow"><div><b>Audit log</b><small>The last 50 admin and agency actions. Only you can read it.</small></div><button class="btn sm" data-auditload="1">' + (auditBusy ? 'Loading...' : (auditList ? 'Refresh' : 'Load')) + '</button></div>';
+    if (auditList && !auditList.length) { h += '<div class="trow"><div><small>No actions logged yet.</small></div></div>'; }
+    each(auditList || [], function (a) {
+      var ms = a.time && a.time.toMillis ? a.time.toMillis() : 0;
+      h += '<div class="trow"><div><b>' + esc(a.action) + ' &middot; ' + esc(a.agency) + '</b><small>' + (ms ? fmtFull(ms) : 'pending') + ' &middot; report ' + esc(a.targetId) + '</small></div></div>';
+    });
+    return h;
   }
   var toastT = null;
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.className = 'toast show'; if (toastT) { clearTimeout(toastT); } toastT = setTimeout(function () { t.className = 'toast'; }, 2200); }
@@ -1378,12 +1396,13 @@
     }
     if (cloudOn()) {
       if (CLOUD.email) {
-        b = '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + (CLOUD.admin ? 'Admin: you can resolve and delete any shared report.' : 'Signed in, but this account is not an admin.') + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>';
+        b = '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + (CLOUD.admin ? (CLOUD.owner ? 'Owner: you can verify, resolve and delete any shared report.' : agencyNote()) : 'Signed in, but this account is not an admin.') + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>';
         if (CLOUD.admin) {
           var fg = flagGroups();
+          if (CLOUD.owner) { b += auditHtml(); }
           b += '<div class="trow"><div><b>Export reports</b><small>Downloads the latest 200 shared reports as a CSV file.</small></div><button class="btn sm" data-export="1">Export CSV</button></div>';
           b += '<div class="trow"><div><b>Flagged reports (' + fg.length + ')</b><small>Flagged by visitors for review.</small></div></div>';
-          each(fg, function (g) { b += '<div class="trow"><div><b>' + esc(g.r.title) + '</b><small>' + g.list.length + ' flag' + (g.list.length > 1 ? 's' : '') + ': ' + esc(g.list[0].reason) + '</small></div><div><button class="btn sm" data-flagopen="' + g.r.id + '">Open</button> <button class="btn sm" data-flagdismiss="' + g.r.cid + '">Dismiss</button> <button class="btn sm danger" data-del="' + g.r.id + '">Delete</button></div></div>'; });
+          each(fg, function (g) { b += '<div class="trow"><div><b>' + esc(g.r.title) + '</b><small>' + g.list.length + ' flag' + (g.list.length > 1 ? 's' : '') + ': ' + esc(g.list[0].reason) + '</small></div><div><button class="btn sm" data-flagopen="' + g.r.id + '">Open</button> ' + (CLOUD.owner ? '<button class="btn sm" data-flagdismiss="' + g.r.cid + '">Dismiss</button> <button class="btn sm danger" data-del="' + g.r.id + '">Delete</button>' : '') + '</div></div>'; });
         }
       } else {
         b = '<div class="trow"><input type="text" id="adEmail" placeholder="Admin email" autocomplete="username" style="flex:1"></div><div class="trow"><input type="password" id="adPw" placeholder="Password" autocomplete="current-password" style="flex:1"><button class="btn sm primary" data-adminlogin="1">Sign in</button></div>';
@@ -1433,7 +1452,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1457,7 +1476,7 @@
       if (sr && window.MAPS_EMBED_KEY) { $('svBox').innerHTML = '<iframe title="Street view" style="width:100%;height:300px;border:0;border-radius:8px;margin-top:12px" loading="lazy" allowfullscreen src="https://www.google.com/maps/embed/v1/streetview?key=' + encodeURIComponent(window.MAPS_EMBED_KEY) + '&location=' + sr.lat + ',' + sr.lng + '&fov=90"></iframe><div class="m">Needs internet. Street view may be old or missing on some roads.</div>'; }
       return;
     }
-    if (n === 'data-verify') { var vr = cloudById(v); if (vr && CLOUD.admin) { CLOUD.setVerified(vr.cid, vr.trust !== 'verified', cloudFail); toast(vr.trust === 'verified' ? 'Verification removed' : 'Marked as verified'); } return; }
+    if (n === 'data-verify') { var vr = cloudById(v); if (vr && CLOUD.admin && CLOUD.can(vr.type)) { CLOUD.setVerified(vr.cid, vr.trust !== 'verified', cloudFail); toast(vr.trust === 'verified' ? 'Verification removed' : 'Marked as verified'); } return; }
     if (n === 'data-flag') {
       var fr = byId(v), why;
       if (!fr || !fr.cloud || !CLOUD.uid) { return; }
@@ -1484,8 +1503,14 @@
     if (n === 'data-pdel') { var di = parseInt(v, 10); if (di >= 0 && di < pendImgs.length) { pendImgs.splice(di, 1); renderPrevs(); } return; }
     if (n === 'data-export') { if (CLOUD.admin) { exportCsv(); } return; }
     if (n === 'data-flagopen') { showView('dash'); select(v, true); openDetail(v); return; }
-    if (n === 'data-flagdismiss') { CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
-    if (n === 'data-adminout') { CLOUD.logout(); toast('Signed out'); return; }
+    if (n === 'data-flagdismiss') { if (!CLOUD.owner) { return; } CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
+    if (n === 'data-auditload') {
+      if (!CLOUD.owner || auditBusy) { return; }
+      auditBusy = true; renderSettings();
+      CLOUD.listAudit(function (l) { auditList = l; auditBusy = false; renderSettings(); }, function (er) { auditBusy = false; renderSettings(); alert('Could not load the audit log.\n\nError: ' + (er && er.code ? er.code : 'unknown')); });
+      return;
+    }
+    if (n === 'data-adminout') { auditList = null; CLOUD.logout(); toast('Signed out'); return; }
     if (n === 'data-tf') { tf = v; selId = null; refresh(); return; }
     if (n === 'data-tr') { trF = (trF === v) ? 'all' : v; refresh(); return; }
     if (n === 'data-open') { e.stopPropagation(); select(v, true); openDetail(v); return; }
