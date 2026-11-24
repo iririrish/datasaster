@@ -7,6 +7,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - Shared reports, live sync, anonymous auth: cloud.js, firestore.rules.
 - Up to 3 photos with shrinking and lightbox zoom: app.js `shrinkPhoto`, `lb*`; rules `photosOk`.
 - Admin tools: verify, resolve, delete, flags list, CSV export: cloud.js, app.js.
+- Agency role (scoped verify/resolve, no delete) and audit log, added in Agency Portal step 1 (code present, see Needs Testing): cloud.js, app.js, firestore.rules.
 - Flagging, share link (`#id`), proximity alerts, grouping of similar community reports (1 km, 24 h).
 - Live quakes (USGS/EMSC), live layers, rain forecast map with timeline and wind (300-point grid).
 - Hide-reports switch and filter legend; resolved status; PWA with network-first service worker (`datasaster-v18`).
@@ -18,6 +19,9 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - Forecast map and timeline on mobile; Open-Meteo request volume (300 per visitor).
 - Offline behaviour and update flow after a `sw.js` cache bump.
 - Vercel deployment: confirmed in use by the owner. Still check that the Vercel domain is in Firebase Authorized domains and the reCAPTCHA key, then test admin sign-in and posting on that domain.
+
+- **Agency role and audit log (step 1), nothing run live yet.** Publish the new rules, then with a test agency account (`role: agency`, `agency: PAGASA`, `types: [flood, typhoon]`) check: verify/resolve a flood report works; verify a quake report is rejected; delete is rejected; the audit log shows the entries (owner only); the agency cannot read or edit `audit`; the owner still works as before. Also check that the access-call limit in the update rule is not hit (an agency update reads the admin doc and the audit doc).
+- Existing admin documents must still work as owner: sign in with your current admin and verify, resolve, delete, and open the audit log.
 
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
@@ -38,6 +42,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 10. **Admin visible to all in Settings** (UI only; enforcement is in the rules, which is correct).
 
 ## Pending Features (requested, not in code)
+- Agency Portal steps 2 to 5: agency assessments, official advisories, fake-agency security test, agency guide. (Step 1 roles and audit log is done.)
 - PAGASA wind-signal / typhoon-signal layer (mockup only).
 - Making the repo private: unknown whether done. Vercel hosting is confirmed. If the repo is private, the old GitHub Pages link is offline and installed phone copies from it must be reinstalled from the Vercel link.
 
@@ -49,7 +54,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - Automatic "resolved after N days" rule; remember legend open/closed; push alerts when closed (needs Cloud Functions, Blaze plan).
 
 ## Configuration Required (manual)
-- Confirm the live rules are the strict set (they appear to be) and that posting works.
+- Publish the new `firestore.rules` from Agency Portal step 1 (copy the old rules to a text file first) and confirm posting and admin actions still work.
 - Firebase Authentication: Anonymous + Email/Password enabled; authorized domains include `iririrish.github.io` and the Vercel domain.
 - Admin user and `admins/<UID>` document (UID without any prefix).
 - reCAPTCHA Enterprise key domains include every hosting domain; verify requests before enforcing App Check.

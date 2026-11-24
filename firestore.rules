@@ -2,8 +2,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // admins/<uid> exists = some kind of admin. Its fields decide which kind:
+    //   role "agency" (plus agency: "PAGASA", types: ["flood","typhoon"]) = limited agency account
+    //   anything else (no role, or the old role "admin") = owner, full powers as before
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function adminDoc() {
+      return get(/databases/$(database)/documents/admins/$(request.auth.uid)).data;
+    }
+    function isAgency() {
+      return isAdmin() && adminDoc().get('role', '') == 'agency';
+    }
+    function isOwner() {
+      return isAdmin() && adminDoc().get('role', '') != 'agency';
+    }
+    // An agency action on a report must come with an audit entry written in the same batch.
+    function auditOk(id) {
+      return request.resource.data.get('auditId', '') is string
+        && request.resource.data.get('auditId', '') != ''
+        && existsAfter(/databases/$(database)/documents/audit/$(request.resource.data.auditId))
+        && getAfter(/databases/$(database)/documents/audit/$(request.resource.data.auditId)).data.targetId == id
+        && getAfter(/databases/$(database)/documents/audit/$(request.resource.data.auditId)).data.uid == request.auth.uid;
     }
     function userDoc() {
       return /databases/$(database)/documents/users/$(request.auth.uid);
@@ -58,10 +78,16 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         (resource.data.uid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']))
-        || (isAdmin()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified']))
+        || (isOwner()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','auditId']))
+        || (isAgency()
+          && resource.data.type in adminDoc().get('types', [])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','auditId'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasAll(['auditId'])
+          && auditOk(id))
       );
-      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      // Authors and the owner can delete. Agencies cannot delete community reports.
+      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isOwner());
     }
 
     // Visitors can flag a report once; only admins can read or clear flags.
@@ -76,7 +102,25 @@ service cloud.firestore {
         && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
         && request.resource.data.time is number
         && exists(/databases/$(database)/documents/reports/$(request.resource.data.reportId));
-      allow delete: if isAdmin();
+      allow delete: if isOwner();
+    }
+
+    // Audit log: admins and agencies can only add entries. Only the owner can read. Nobody can edit or delete.
+    match /audit/{aid} {
+      allow read: if isOwner();
+      allow create: if request.auth != null && isAdmin()
+        && request.resource.data.keys().hasAll(['uid','agency','action','targetType','targetId','time'])
+        && request.resource.data.keys().hasOnly(['uid','agency','action','targetType','targetId','note','time'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN','DELETE','FLAGS_DISMISS']
+        && (isOwner() || request.resource.data.action in ['VERIFY','UNVERIFY','RESOLVE','REOPEN'])
+        && request.resource.data.targetType == 'report'
+        && request.resource.data.targetId is string && request.resource.data.targetId.size() <= 40
+        && request.resource.data.agency is string && request.resource.data.agency.size() <= 60
+        && (isOwner() || request.resource.data.agency == adminDoc().get('agency', ''))
+        && request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 300
+        && request.resource.data.time == request.time;
+      allow update, delete: if false;
     }
   }
 }

@@ -48,7 +48,8 @@ datasaster/
 | Report form: type-specific fields, 0 to 3 photos (shrunk to ~200 KB each), map-pick or GPS location | app.js, index.html | Firebase to share | local copy yes |
 | Photo lightbox with zoom, prev/next | app.js, index.html | none | yes |
 | Shared reports, live updates, offline write queue (Firestore persistence) | cloud.js, app.js, firestore.rules | Firebase | queued |
-| Admin: sign-in (Settings > Admin), verify, resolve, delete, flagged list (open/dismiss/delete), CSV export (latest 200) | cloud.js, app.js, rules | Firebase Email/Password | no |
+| Admin roles. **Owner**: verify, resolve, delete any report, flags (open/dismiss/delete), audit log viewer, CSV export (latest 200). **Agency**: verify and resolve only reports of its allowed hazard types, read flags, no delete. Sign in at Settings > Admin | cloud.js, app.js, rules | Firebase Email/Password | no |
+| Audit log: every owner/agency verify, resolve, delete and flag dismissal is recorded (Settings > Admin > Audit log, owner only, last 50) | cloud.js, app.js, rules (`audit`) | Firebase | no |
 | Flag a report (one per user per report) | cloud.js, app.js | Firebase | no |
 | Share link (`#<id>` opens a report) | app.js (`tryHash`) | none | yes |
 | In-app proximity alerts for High/Critical shared reports (10/25/50/100 km) | app.js | Firebase, geolocation | only while app open |
@@ -75,9 +76,16 @@ Auth: Anonymous (every visitor; used for ownership) and Email/Password (admins o
 | `reports` | auto id | uid, type, sev (int 0 to 3), title, desc, place, lat, lng, img (always `''`), imgs (max 3 strings, each < 230,000 chars), obs (list of `{k,v}`, max 12), time (ms), resolved, resAt, verified | read: anyone. create: signed in, validated, `resolved=false`, `verified=false`, passes `canPost()`. update: author may change `resolved`,`resAt`; admin may also change `verified`. delete: author or admin. |
 | `users` | uid | lastPost (server timestamp) | create/update own doc only, must equal `request.time`. No read. Used for the 2-minute posting limit. |
 | `flags` | `<reportId>_<uid>` | reportId, uid, reason (<=200), time | create: signed in, report must exist. read/delete: admin only. |
-| `admins` | admin's UID | any field (e.g. `role`) | read own doc only. No client writes. Create in console. |
+| `admins` | admin's UID | `role`, and for agencies `agency` (text) and `types` (list of hazard types) | read own doc only. No client writes. Create in console. See "Roles" below. |
+| `audit` | auto id | uid, agency (`OWNER` or agency name), action (`VERIFY`, `UNVERIFY`, `RESOLVE`, `REOPEN`, `DELETE`, `FLAGS_DISMISS`), targetType (`report`), targetId, note, time (server) | create: admins only (agencies only the first four actions, and only under their own agency name). read: owner only. update/delete: nobody. |
 
 Admin = a document `admins/<UID>` exists. Never hide-button-only: all admin actions are enforced by the rules.
+
+**Roles** (decided by the fields of the `admins/<UID>` document):
+- **Owner:** `role` missing, `admin` or anything other than `agency`. Same powers as the old admin. Existing admin documents (e.g. `role = admin`) stay owners with no change.
+- **Agency:** `role` = `agency`, `agency` = `PAGASA` (text), `types` = array of strings such as `flood`, `typhoon`. An agency can set `verified`/`resolved` only on reports whose `type` is in its `types`, and each such update must carry an `auditId` pointing to an audit entry written in the same batch (the rules check it). It cannot delete reports, dismiss flags or read the audit log.
+- To create an agency account: Authentication > Add user; copy the UID; Firestore > `admins` > document id = UID with fields `role` (string) `agency`, `agency` (string) e.g. `PAGASA`, `types` (array of strings). Valid types: `flood`, `fire`, `quake`, `volcano`, `typhoon`, `landslide`. Removing the document removes the access immediately.
+- Limits: the audit entries for **owner** actions are written by the app but not forced by the rules; only agency report updates are forced to have one. The owner can still edit the log in the Firebase console, so it protects against agencies, not against the owner.
 Sync: `reports` ordered by `time desc`, limit 200, live `onSnapshot`; flags are watched only for admins.
 Type list in rules (`flood, fire, quake, volcano, typhoon, landslide`) must match `TORDER` in app.js.
 
