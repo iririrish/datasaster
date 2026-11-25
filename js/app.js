@@ -124,7 +124,7 @@
   var newsItems = [], newsState = 'loading', newsLive = 0, quakeState = '';
   var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '7d', dayVal = '', selId = null, newsF = 'all';
   var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImgs = [], photoBusy = 0, lbList = [], lbIdx = 0;
-  var legendOpen = true, panelOpen = false;
+  var legendOpen = !(window.innerWidth && window.innerWidth <= 900), panelOpen = false;
   var lstat = {}, lgroups = {}, lupd = {};
   var rv = { loaded: false, loading: false, failed: false, host: '', radar: [], sat: [] }, rvLayers = [], rvCloud = null, rvTimer = null, rvIdx = 0, rvLabel = '';
   var fcData = { rain: null, river: null }, eonet = null, parLine = null, rainPop = null;
@@ -753,6 +753,7 @@
     d.querySelector('.fcrange').addEventListener('input', function () { if (fcTimer) { fcPlayToggle(); } fcShow(parseInt(this.value, 10) || 0); });
     map.on('resize', fcPlaceBubble);
     fcBar = d;
+    document.body.classList.add('fcon');
   }
   function fcWindStart() {
     var cv = document.createElement('canvas'), box = map.getContainer(), ctx = cv.getContext('2d'), parts = [], W = 0, H = 0, last = 0, w;
@@ -806,6 +807,7 @@
     if (map) { map.off('resize', fcPlaceBubble); }
     if (fcBar && fcBar.parentNode) { fcBar.parentNode.removeChild(fcBar); }
     fcBar = null;
+    document.body.classList.remove('fcon');
     if (map && fcOverlay) { map.removeLayer(fcOverlay); }
     fcOverlay = null;
     if (map && fcMarkGroup) { map.removeLayer(fcMarkGroup); }
@@ -1550,6 +1552,7 @@
   }
   function showView(v) {
     viewing = v;
+    document.body.setAttribute('data-view', v);
     $('viewDash').hidden = v !== 'dash';
     $('viewSettings').hidden = v !== 'settings';
     $('viewReview').hidden = v !== 'review';

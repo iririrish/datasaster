@@ -307,3 +307,43 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 #advForm input,#advForm select,#advForm textarea{width:100%}
 #advForm textarea{min-height:110px}
 #advForm{margin-bottom:12px}
+
+/* ===== Phone layout fixes (max-width 900px) ===== */
+/* The forecast timeline sits at the bottom of the map, so lift the legend above it (all screen sizes). */
+body.fcon .legend{bottom:134px}
+@media(max-width:900px){
+  /* Header: no tagline, one compact row (logo, name, Review, Settings, Report) */
+  .brand small{display:none}
+  .top{padding-top:8px;padding-bottom:8px}
+  /* Category bar: chips scroll inside their own row, the date picker stays visible on the right */
+  .bar{flex-wrap:nowrap;gap:8px;padding:8px 12px}
+  .bar .sp{display:none}
+  .segs{flex:1 1 auto;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .segs::-webkit-scrollbar{display:none}
+  .seg{flex:none;padding:6px 11px;font-size:12px;gap:6px}
+  .date{flex:none}
+  .date label{display:none}
+  .date select{width:116px;min-width:0;font-size:12px;padding-left:8px;padding-right:22px}
+  .segs{-webkit-mask-image:linear-gradient(to right,#000 88%,transparent);mask-image:linear-gradient(to right,#000 88%,transparent);padding-right:18px}
+  /* Map and Feed tabs fill the screen exactly, so the page itself never scrolls */
+  body[data-pane=map]:not([data-view=settings]):not([data-view=review]),
+  body[data-pane=feed]:not([data-view=settings]):not([data-view=review]){display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+  body[data-pane=map]:not([data-view=settings]):not([data-view=review]) #viewDash,
+  body[data-pane=feed]:not([data-view=settings]):not([data-view=review]) #viewDash{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;box-sizing:border-box;padding-bottom:calc(62px + env(safe-area-inset-bottom))}
+  body[data-pane=map]:not([data-view=settings]):not([data-view=review]) .work,
+  body[data-pane=feed]:not([data-view=settings]):not([data-view=review]) .work{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+  body[data-pane=map]:not([data-view=settings]):not([data-view=review]) .mapwrap{flex:1 1 auto;height:auto;min-height:0;position:relative}
+  body[data-pane=feed]:not([data-view=settings]):not([data-view=review]) .feed{flex:1 1 auto;height:auto;min-height:0}
+  /* Legend: small, bottom-left; the tile warning sits low so it does not cover the controls */
+  .legend{left:8px;bottom:12px;width:min(236px,calc(100% - 16px));max-height:46%}
+  body.fcon .legend{bottom:134px}
+  .fcbar{bottom:12px !important;width:calc(100% - 16px) !important}
+  #tilewarn{top:auto;bottom:56px;left:8px;right:8px;max-width:none}
+  body.fcon #tilewarn{display:none !important}
+  body[data-pane=contacts] .bar{display:none}
+  /* Help: contacts become stacked cards instead of a wide table */
+  #contactSec table,#contactSec tbody,#contactSec tr,#contactSec td{display:block;width:auto !important}
+  #contactSec thead{display:none}
+  #contactSec tr{padding:12px 0;border-bottom:1px solid var(--line)}
+  #contactSec td{padding:2px 0;border:0;overflow-wrap:anywhere}
+}

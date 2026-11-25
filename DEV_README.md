@@ -109,6 +109,7 @@ Variables are all in `js/firebase-config.js`. The Firebase web config and App Ch
 Static hosting only. The owner confirms the site is now served from **Vercel** (framework "Other", no build command, no serverless functions), which redeploys on each commit. GitHub Pages was used earlier. Vercel Insights in `index.html` only works on Vercel. Whichever host: add its domain to Firebase Authorized domains and the reCAPTCHA key. **Every deploy:** bump `CACHE` in `sw.js` (currently `datasaster-v18`) so installed copies update. Installed copies are tied to the origin they were installed from.
 
 ## H. Editing guide
+- Phone layout: the block "Phone layout fixes" at the bottom of `css/style.css` (breakpoint 900 px) and the older `@media(max-width:900px)` rules near the middle. Later rules win, so change the bottom block first.
 - Colours/themes: `css/style.css` lines 1 to 2. Layout/spacing/responsive: rest of style.css, breakpoint `max-width:900px`. Logo: `#logo` rule (uses `icon-192.png`). Header/tagline: `index.html` `class="brand"` plus `.brand small` rules (two blocks, later one wins).
 - Text/labels: index.html (fixed text), app.js (`TYPES`, `SEV`, `SEVDESC`, `EFFECTS` and other option lists).
 - Content: data.js (`SEED`, `CONTACTS`, `SRC`, `POINTS`, `LAYERS`).

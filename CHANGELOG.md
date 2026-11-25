@@ -170,6 +170,20 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 ### Notes
 - Only community reports shared through Firebase appear (not sample or live-earthquake records). Reports older than the latest 200 do not appear.
 
+## Phone layout fixes - Date unknown
+### Fixed
+- **Help tab** no longer needs sideways scrolling: the contacts table becomes stacked cards on phones (the page was 481 px wide on a 390 px screen).
+- **Map and Feed tabs** fill the screen exactly, so the page itself does not scroll (before, the map was sized with a fixed guess and the page scrolled about 45 px).
+- **Legend vs forecast timeline:** the legend starts collapsed on phones, is smaller, and moves up above the timeline bar whenever the forecast layer is on (all screen sizes). The map-tiles warning is hidden while the forecast bar is showing.
+- **Date picker** was pushed off-screen by the category chips; it now stays visible on the right while the chips scroll inside their own row, with a fade at the edge.
+### Changed
+- Phone header: the tagline is hidden (desktop unchanged); header is one compact row with the logo, name and the Review, Settings and Report buttons.
+- Help tab hides the category/date bar.
+### Technical Changes
+- Files modified: `css/style.css` (new block "Phone layout fixes" at the bottom), `js/app.js` (legend starts collapsed on phones, `data-view` attribute set in `showView`, `fcon` body class while the forecast bar exists), `sw.js` (cache `v22` to `v23`), docs.
+### Notes
+- Checked in a headless Chrome at 390x844, 360x740, 768x1024 and 1280x800 with sample data: no sideways scrolling on any tab, Map and Feed tabs do not scroll vertically on phones, no script errors. The forecast timeline itself could not load there (no internet), so the legend/timeline spacing was checked with a stand-in bar of similar size. Not checked on a real phone or in Safari.
+
 ## [Audit] - Documentation created
 ### Added
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.

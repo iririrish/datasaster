@@ -33,6 +33,8 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 
 - **Review reports screen:** sign in as the PAGASA test account; the Review button should appear next to Settings; the list should show TEST flood and other flood/typhoon reports and no quake reports; filters and counts should change; opening a row should allow Save assessment; as owner the screen lists all types; signed out the button must not show; check it on a phone (icon only).
 
+- **Phone layout:** on a real phone check all four tabs, the forecast layer with the legend open, Settings, the Review screen (admins), and landscape orientation. The category chips scroll sideways inside their row by design.
+
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
 - App Check: client activates with an Enterprise key; **enforcement status unknown**. 
