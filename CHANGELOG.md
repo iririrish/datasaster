@@ -184,6 +184,32 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 ### Notes
 - Checked in a headless Chrome at 390x844, 360x740, 768x1024 and 1280x800 with sample data: no sideways scrolling on any tab, Map and Feed tabs do not scroll vertically on phones, no script errors. The forecast timeline itself could not load there (no internet), so the legend/timeline spacing was checked with a stand-in bar of similar size. Not checked on a real phone or in Safari.
 
+## Emergency contacts as the website footer - Date unknown
+### Changed
+- The "Emergency contacts" table is now a proper site footer at the bottom of the page: a grid of contact cards (agency, tap-to-call numbers, what to call for), the 911 card highlighted, then the disclaimer line. On phones the footer is what the Help tab shows (one card per row). The separate "contacts" section and the old one-line footer were merged.
+### Technical Changes
+- Files modified: `index.html` (footer `#contactSec` / `.sitefoot`, `#contacts` is now a card grid), `js/app.js` (`renderContacts` builds cards instead of table rows), `css/style.css` (footer styles, removed the table-on-phone rules; empty `.work` strip hidden on News and Help), `sw.js` (cache `v23` to `v24`). Contact data still lives in `js/data.js` (`CONTACTS`).
+### Notes
+- Checked in headless Chrome on desktop (1280) and phone (390): 9 cards, no sideways scrolling, no script errors. Not checked on a real phone. The footer is not pinned to the screen; it sits at the end of the page (desktop) and fills the Help tab (phone).
+
+## Website checklist: legal, SEO, icons, accessibility, validation - Date unknown
+### Added
+- `privacy.html` and `terms.html` (draft, with contact placeholders), linked from the footer and the report form; `404.html` (branded, noindex); `robots.txt`, `sitemap.xml`; `vercel.json` (HSTS to force HTTPS, nosniff, referrer policy, frame denial, geolocation only for the site, no-cache for `sw.js`).
+- Page title and description, Open Graph and Twitter tags, social preview image `og-image.png` (1200x630), real favicon set (`favicon.ico`, `favicon-32.png`, `apple-touch-icon.png`), noscript message.
+- Privacy notice bar (dismissible, remembered in local storage). It informs; it is not a consent gate, because the app uses no ad or marketing cookies.
+- Report form checks: headline up to 120 characters, place up to 200, details up to 2000, depth and hours must be realistic numbers, location must be inside the Philippines; matching `maxlength`/`max` attributes.
+- Header call to action: a labelled "+ Report" button on phones.
+### Changed
+- `icon-192.png` and `icon-512.png` are now square (the old ones were an identical 149x140 image) and compressed (about 21 KB and 80 KB, down from 37 KB each at the wrong size). Manifest purpose changed from "any maskable" to "any" so the globe is not cropped.
+- Colour contrast: white text on blue buttons failed in the dark theme (3.2 to 1). Filled blue elements now use `--accentbg` (5.0 to 1 dark, 5.2 to 1 light). Other text colours were measured and already pass 4.5 to 1.
+- Feed thumbnails now have descriptive alt text. Phone header tightened so Review, Settings and Report fit on a 320 px screen.
+### Technical Changes
+- Files added: `privacy.html`, `terms.html`, `404.html`, `robots.txt`, `sitemap.xml`, `vercel.json`, `og-image.png`, `favicon.ico`, `favicon-32.png`, `apple-touch-icon.png`. Files modified: `index.html`, `js/app.js`, `css/style.css`, `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `sw.js` (cache `v24` to `v25`, new files cached), docs. No rules change.
+### Notes
+- **Replace `https://YOUR-SITE.vercel.app`** with your real address in `index.html` (og:image and twitter:image), `sitemap.xml` and `robots.txt`. Fill `[your email address]` in `privacy.html` and `terms.html`.
+- Not done on purpose: cookie consent gating (no ad or marketing cookies), moving secrets (none are secret), a honeypot (App Check and the rules are the real spam defence), a Content-Security-Policy (the app uses inline scripts; a wrong policy would break it).
+- Tests: headless Chrome with sample data checked links and assets (none missing), the notice bar, the header at 320, 360 and 390 px, the three new pages, and no script errors. Form validation was checked by code only. Real-phone, Lighthouse and social-preview tests were not run.
+
 ## [Audit] - Documentation created
 ### Added
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.

@@ -1,5 +1,5 @@
-:root{--bg:#0f1318;--panel:#151a21;--panel2:#1c222b;--line:#283140;--text:#e8ebf0;--muted:#8f99a8;--accent:#4c8dff;--s0:#34d399;--s1:#fbbf24;--s2:#fb923c;--s3:#ef4444;--r:6px}
-[data-theme=light]{--bg:#eef0f3;--panel:#ffffff;--panel2:#f2f4f7;--line:#d9dee5;--text:#14181f;--muted:#5b6574;--accent:#2563eb}
+:root{--bg:#0f1318;--panel:#151a21;--panel2:#1c222b;--line:#283140;--text:#e8ebf0;--muted:#8f99a8;--accent:#4c8dff;--accentbg:#2c6bd9;--s0:#34d399;--s1:#fbbf24;--s2:#fb923c;--s3:#ef4444;--r:6px}
+[data-theme=light]{--bg:#eef0f3;--panel:#ffffff;--panel2:#f2f4f7;--line:#d9dee5;--text:#14181f;--muted:#5b6574;--accent:#2563eb;--accentbg:#2563eb}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;font-variant-numeric:tabular-nums}
@@ -15,7 +15,7 @@ h1,h2,h3,h4{margin:0;text-wrap:balance}
 /* controls */
 .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:var(--r);padding:8px 12px;font-weight:600;font-size:13px;line-height:1.2}
 .btn:hover{border-color:var(--accent)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary{background:var(--accentbg);border-color:var(--accentbg);color:#fff}
 .btn.primary:hover{filter:brightness(1.1)}
 .btn.danger{color:var(--s3)}
 .btn.sm{padding:5px 9px;font-size:12px}
@@ -74,7 +74,7 @@ textarea{width:100%;height:80px;resize:vertical}
 .mctl{position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
 .tg2{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .tg2 button{background:none;border:0;padding:7px 12px;color:var(--muted);font-size:13px}
-.tg2 button.on{background:var(--accent);color:#fff}
+.tg2 button.on{background:var(--accentbg);color:#fff}
 .lpanel{width:280px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:4px 0}
 .lrow{display:flex;align-items:center;gap:10px;padding:8px 12px}
 .lrow div{flex:1;min-width:0}
@@ -99,7 +99,7 @@ textarea{width:100%;height:80px;resize:vertical}
 .lg-b2 b{font-weight:600;color:var(--muted)}
 .lg-b h4 .m{font-weight:400;text-transform:none;letter-spacing:0}
 .sq{flex:none;width:12px;height:12px;border-radius:3px;background:var(--c)}
-#pickbar{display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1100;background:var(--accent);color:#fff;border-radius:var(--r);padding:8px 12px;white-space:nowrap}
+#pickbar{display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1100;background:var(--accentbg);color:#fff;border-radius:var(--r);padding:8px 12px;white-space:nowrap}
 #pickbar button{margin-left:10px;border:0;border-radius:4px;padding:3px 8px}
 #tilewarn{display:none;position:absolute;left:12px;top:12px;z-index:1000;max-width:300px;background:var(--panel);border:1px solid var(--s1);border-radius:var(--r);padding:8px 12px;font-size:12px}
 .leaflet-bar{border:1px solid var(--line)!important;box-shadow:none!important}
@@ -260,7 +260,7 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
   font-weight:600;font-size:13px;line-height:1.2;
 }
 .seg:hover{color:var(--text);border-color:var(--accent)}
-.seg.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg.on{background:var(--accentbg);border-color:var(--accentbg);color:#fff}
 .seg::before{
   content:"";flex:none;width:16px;height:16px;
   background:currentColor;
@@ -300,7 +300,7 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .adv h3{font-size:15px;margin:6px 0 4px}
 .adv p{margin:6px 0;white-space:pre-line}
 .adv .advh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.advbadge{background:var(--accent);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;letter-spacing:.03em}
+.advbadge{background:var(--accentbg);color:#fff;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;letter-spacing:.03em}
 .adv.old{opacity:.75}
 .adv .acts{display:flex;gap:8px;margin-top:8px}
 #advForm .l{display:block;margin-top:10px}
@@ -341,9 +341,53 @@ body.fcon .legend{bottom:134px}
   #tilewarn{top:auto;bottom:56px;left:8px;right:8px;max-width:none}
   body.fcon #tilewarn{display:none !important}
   body[data-pane=contacts] .bar{display:none}
-  /* Help: contacts become stacked cards instead of a wide table */
-  #contactSec table,#contactSec tbody,#contactSec tr,#contactSec td{display:block;width:auto !important}
-  #contactSec thead{display:none}
-  #contactSec tr{padding:12px 0;border-bottom:1px solid var(--line)}
-  #contactSec td{padding:2px 0;border:0;overflow-wrap:anywhere}
+  body[data-pane=contacts] .work,body[data-pane=news] .work{display:none}
+  /* Help tab: the footer holds the emergency contacts */
+  .sitefoot{margin-top:0;padding:20px 16px 28px}
+}
+
+/* Website footer with the emergency contacts */
+.sitefoot{border-top:1px solid var(--line);background:var(--panel);margin-top:24px;padding:28px 16px 40px}
+.sitefoot .fwrap{max-width:1200px;margin:0 auto}
+.sitefoot h2{font-size:16px;margin:0 0 6px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin:16px 0}
+.cc{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2)}
+.cc.big{border-color:var(--accent)}
+.cc b{font-size:14px}
+.cc.big b{font-size:16px}
+.cc .cn{display:flex;flex-wrap:wrap;gap:2px 12px}
+.cc .cn a{font-weight:600;text-decoration:none;margin-right:0;white-space:nowrap}
+.cc small{color:var(--muted);font-size:12px;line-height:1.4}
+.sitefoot .fine{font-size:12px;color:var(--muted);text-align:center;margin:16px 0 0}
+
+/* Privacy notice bar */
+#noticeBar{position:fixed;left:12px;right:12px;bottom:12px;max-width:640px;margin:0 auto;z-index:3000;display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;font-size:13px;line-height:1.4;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+#noticeBar a{color:var(--accent)}
+#noticeBar .btn{flex:none}
+.lbl2{display:none}
+/* Privacy, Terms and 404 pages */
+.legalpage{display:block;height:auto;overflow:auto}
+.legal{max-width:760px;margin:0 auto;padding:24px 16px 60px;line-height:1.65}
+.legal h1{font-size:26px;margin:20px 0 4px}
+.legal h2{font-size:17px;margin:26px 0 6px}
+.legal ul{padding-left:20px}
+.legal li{margin:4px 0}
+.legal a{color:var(--accent)}
+.legal .btn{text-decoration:none;color:var(--text)}
+.legal .btn.primary{color:#fff}
+.sitefoot .fine a{color:var(--accent)}
+@media(max-width:900px){
+  #noticeBar{bottom:calc(72px + env(safe-area-inset-bottom))}
+  #btnRep .lbl{display:none}
+  #btnRep .lbl2{display:inline}
+}
+
+/* Phone header: fits logo, name, Review (admins), Settings and Report on a 360 px screen */
+@media(max-width:900px){
+  .top{gap:6px;padding-left:10px;padding-right:10px}
+  .top #logo{flex:0 0 36px;width:36px;min-width:36px;height:36px;border-radius:8px}
+  .brand{flex:1 1 auto;min-width:0;gap:8px}
+  .brand > div{min-width:0}
+  .brand b{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .top .btn{padding-left:10px;padding-right:10px}
 }

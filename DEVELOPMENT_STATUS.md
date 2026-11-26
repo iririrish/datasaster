@@ -42,6 +42,7 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - News: depends on third-party proxies, with sample headlines as fallback.
 
 ## Known Bugs and Inconsistencies
+00. Icons fixed (now square and compressed). The logo source is only 140 px, so the 512 px icon is soft; supply a larger logo file to sharpen it. (icon-512.png)
 0. **App Check token error on the Vercel site:** console shows `appCheck/recaptcha-error`. Most likely the Vercel domain is missing from the reCAPTCHA key's allowed domains. Writes still work, so enforcement is off. Do not enforce App Check until Firebase shows verified requests for Firestore. (js/firebase-config.js, Google Cloud reCAPTCHA key)
 1. **Icons:** `icon-192.png` and `icon-512.png` are byte-identical and only 149x140 px (not square, not the declared sizes). Hurts installability, maskable icons and the `#logo` box. Replace with real square 192 and 512 PNGs. (manifest.webmanifest, sw.js)
 2. **Rate limit can be bypassed:** `canPost()` is satisfied by several `reports` creates in one batch with a single `users` write. Also resets with a new anonymous identity (clearing site data); App Check enforcement is the real defense. (firestore.rules)
@@ -67,6 +68,9 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - Automatic "resolved after N days" rule; remember legend open/closed; push alerts when closed (needs Cloud Functions, Blaze plan).
 
 ## Configuration Required (manual)
+- Replace `https://YOUR-SITE.vercel.app` in `index.html`, `sitemap.xml`, `robots.txt`. Fill the contact email in `privacy.html` and `terms.html`, and have your adviser read both pages.
+- In Google Cloud > APIs & Services > Credentials, restrict the Firebase browser API key to your site's domain (and the Maps Embed key if you use one). The Firebase config and reCAPTCHA site key in the page are public by design; there are no private keys in the repo.
+- After deploying, test the social preview (paste your link into a Facebook or LinkedIn debugger) and run Lighthouse on the live site.
 - Publish the new `firestore.rules` from Agency Portal step 1 (copy the old rules to a text file first) and confirm posting and admin actions still work.
 - Firebase Authentication: Anonymous + Email/Password enabled; authorized domains include `iririrish.github.io` and the Vercel domain.
 - Admin user and `admins/<UID>` document (UID without any prefix).

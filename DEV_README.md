@@ -25,7 +25,8 @@ datasaster/
 │   └── firebase-config.js  Firebase web config, App Check key, optional Maps Embed key
 ├── lib/                    leaflet.js/.css, firebase-app|auth|firestore|app-check-compat.js (do not edit)
 ├── firestore.rules         paste into Firebase console (not deployed by git)
-├── manifest.webmanifest, sw.js, icon-192.png, icon-512.png
+├── manifest.webmanifest, sw.js, icon-192.png, icon-512.png, favicon.ico, favicon-32.png, apple-touch-icon.png, og-image.png
+├── privacy.html, terms.html, 404.html, robots.txt, sitemap.xml, vercel.json
 ├── README.md               public setup guide (existing)
 ├── DEV_README.md  CHANGELOG.md  DEVELOPMENT_STATUS.md
 ```
@@ -61,7 +62,7 @@ datasaster/
 | Rain forecast map: 15x20 = 300-point grid (0 to 28N, 102 to 140E, 2 degree step), 96 h timeline, wind streaks, city weather icons | app.js (`FCS`, `loadFcGrid`, `fc*`) | Open-Meteo | no |
 | Legend with filters (type and severity buttons) and layer panel | app.js | none | yes |
 | News: Google News RSS per outlet via api.rss2json.com or api.allorigins.win; sample headlines if blocked | app.js, data.js | internet | falls back to samples |
-| Emergency contacts (tap to call) | data.js, app.js | none | yes |
+| Emergency contacts: website footer with a card per agency, tap to call (Help tab on phones) | data.js (`CONTACTS`), app.js (`renderContacts`), index.html (`#contactSec`), style.css (`.sitefoot`, `.cc`) | none | yes |
 | Street view button (Google Maps link); in-panel embed only if `MAPS_EMBED_KEY` set | app.js, firebase-config.js | internet, key (optional) | no |
 | Settings: theme, basemap, categories, sources, data refresh, alerts, install, reset | app.js | none | yes |
 | PWA install, mobile bottom tab bar (Map/Feed/News/Help) | manifest, sw.js, app.js | https | yes |

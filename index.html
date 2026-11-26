@@ -9,9 +9,23 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="DATAsaster">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<title>DATAsaster - Bridging communities with simplified satellite intelligence and crowdsourced mapping </title>
+<title>DATAsaster: Philippine Disaster Map and Reports</title>
+<meta name="description" content="Map of floods, fires, earthquakes, volcanoes, typhoons and landslides in the Philippines, with community reports, advisories and emergency contacts.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DATAsaster">
+<meta property="og:title" content="DATAsaster: Philippine Disaster Map and Reports">
+<meta property="og:description" content="Floods, fires, earthquakes, volcanoes, typhoons and landslides on one map, with community reports and official advisories. Student demo, not an official warning channel.">
+<meta property="og:image" content="https://YOUR-SITE.vercel.app/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DATAsaster logo with the text Philippine disaster map, community reports and official advisories">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DATAsaster: Philippine Disaster Map and Reports">
+<meta name="twitter:description" content="Floods, fires, earthquakes, volcanoes, typhoons and landslides on one map, with community reports and official advisories.">
+<meta name="twitter:image" content="https://YOUR-SITE.vercel.app/og-image.png">
 <link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="css/style.css">
 
@@ -22,6 +36,7 @@
   
 </head>
 <body data-pane="map">
+<noscript><p style="padding:16px;margin:0;background:#fbbf24;color:#14181f">DATAsaster needs JavaScript. Please turn it on in your browser. In an emergency call 911.</p></noscript>
 <header class="top">
   <div class="brand"><span id="logo"></span><div><b>DATAsaster</b><small>Bridging communities with simplified satellite intelligence and crowdsourced mapping</small></div></div>
   <div class="sp"></div>
@@ -91,13 +106,15 @@
   <div class="m" style="margin-top:8px" id="newsMeta"></div>
 </section>
 
-<section class="sec" id="contactSec">
-  <h2>Emergency contacts</h2>
-  <p class="m" style="margin-bottom:10px">DATAsaster is not an official response channel. Reports posted here are not sent to any agency. In an emergency, call these numbers directly.</p>
-  <table><thead><tr><th style="width:26%">Agency</th><th style="width:30%">Call</th><th>Use for</th></tr></thead><tbody id="contacts"></tbody></table>
-</section>
-
-<footer class="foot">DATAsaster is not an official government site. Sample and community records are unconfirmed. For real warnings use PAGASA, PHIVOLCS, NDRRMC and BFP.</footer>
+<footer class="sitefoot" id="contactSec">
+  <div class="fwrap">
+    <h2>Emergency contacts</h2>
+    <p class="m">DATAsaster is not an official response channel. Reports posted here are not sent to any agency. In an emergency, call these numbers directly.</p>
+    <div class="cgrid" id="contacts"></div>
+    <p class="fine"><a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms and Conditions</a></p>
+    <p class="fine">DATAsaster is not an official government site. Sample and community records are unconfirmed. For real warnings use PAGASA, PHIVOLCS, NDRRMC and BFP.</p>
+  </div>
+</footer>
 <nav class="tabbar" id="tabbar"></nav>
 </div>
 <div id="viewSettings" hidden></div>
@@ -110,23 +127,24 @@
     <button class="mx" id="rX" aria-label="Close"></button>
     <h2>Report an incident</h2>
     <div class="safe"><b>Report safely.</b> Do not enter floodwater, fire, smoke or unstable ground for a photo or a location. Report from a safe distance. In an emergency, call 911 or your local hotline first.</div>
+    <div class="hint">Reports, photos and locations you post are public. Do not include faces, number plates or home addresses. See the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and <a href="terms.html" target="_blank" rel="noopener">Terms</a>.</div>
     <div class="hint" id="rHint">Reports are saved on this device and shown as unverified.</div>
     <label class="l">Type</label><select id="rType"></select>
     <label class="l">Severity</label><select id="rSev"></select>
     <div class="hint" id="rSevHelp"></div>
-    <label class="l">Headline</label><input type="text" id="rTitle" placeholder="e.g. Knee-deep flood on Rizal Avenue">
+    <label class="l">Headline</label><input type="text" id="rTitle" maxlength="120" placeholder="e.g. Knee-deep flood on Rizal Avenue">
     <div id="secFlood">
       <label class="l">Water depth</label>
-      <div class="row2"><input type="number" id="rDepth" min="0" step="any"><select id="rUnit"><option value="cm">cm</option><option value="m">m</option></select></div>
-      <label class="l">Hours flooded</label><input type="number" id="rFDur" min="0" step="0.5">
+      <div class="row2"><input type="number" id="rDepth" min="0" max="10000" step="any"><select id="rUnit"><option value="cm">cm</option><option value="m">m</option></select></div>
+      <label class="l">Hours flooded</label><input type="number" id="rFDur" min="0" max="720" step="0.5">
       <label class="l">Road passability</label>
       <select id="rRoad"><option>Passable to all vehicles</option><option>Passable to high vehicles only</option><option>Not passable</option></select>
       <label class="l">Water condition</label>
       <select id="rWater"><option>Steady</option><option>Rising slowly</option><option>Rising fast</option><option>Receding</option></select>
     </div>
     <div id="secFire">
-      <label class="l">Burning for (hours)</label><input type="number" id="rBurn" min="0" step="0.5">
-      <label class="l">Structures affected</label><input type="text" id="rStruct">
+      <label class="l">Burning for (hours)</label><input type="number" id="rBurn" min="0" max="720" step="0.5">
+      <label class="l">Structures affected</label><input type="text" id="rStruct" maxlength="120">
     </div>
     <div id="secQuake"><label class="l">Effects observed</label><div id="efxBox"></div><div class="hint">Magnitude and depth are official data and cannot be entered.</div></div>
     <div id="secVolc">
@@ -152,8 +170,8 @@
     <label class="l">Location</label>
     <div class="row2"><button class="btn" id="rPick" type="button">Pick on map</button><button class="btn" id="rGps" type="button">Use my location</button></div>
     <div class="hint" id="rLoc">No location set</div>
-    <label class="l">Place name</label><input type="text" id="rPlace" placeholder="Barangay, city">
-    <label class="l">Details</label><textarea id="rDesc"></textarea>
+    <label class="l">Place name</label><input type="text" id="rPlace" maxlength="200" placeholder="Barangay, city">
+    <label class="l">Details</label><textarea id="rDesc" maxlength="2000"></textarea>
     <div class="acts" style="justify-content:flex-end"><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rSave">Post report</button></div>
   </div>
 </div>

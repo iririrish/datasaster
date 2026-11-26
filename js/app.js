@@ -267,7 +267,7 @@
       h += '<h3>' + esc(r.title) + '</h3>';
       if (n > 1) { h += '<div class="m"><span class="grp">+' + (n - 1) + ' similar report' + (n > 2 ? 's' : '') + ' nearby</span></div>'; }
       h += '<div class="m">' + esc(r.place) + dist + '</div><div class="m">' + trustLine(r) + ' \u00b7 <button class="link" data-open="' + r.id + '">' + (n > 1 ? 'Open thread' : 'Details') + '</button></div></div>';
-      if (settings.showPhotos) { h += '<img class="thumb" alt="" src="' + (photosOf(r)[0] || samplePhoto()) + '">'; }
+      if (settings.showPhotos) { h += '<img class="thumb" alt="Photo for ' + esc(r.title) + '" src="' + (photosOf(r)[0] || samplePhoto()) + '">'; }
       h += '</div>';
     });
     if (!items.length) { h = '<div class="empty">No records match these filters.<br>Widen the date range or clear the filters.</div>'; }
@@ -1031,9 +1031,9 @@
   function renderContacts() {
     var h = '';
     each(CONTACTS, function (c) {
-      h += '<tr' + (c[3] ? ' class="big"' : '') + '><td>' + esc(c[0]) + '</td><td>';
+      h += '<div class="cc' + (c[3] ? ' big' : '') + '"><b>' + esc(c[0]) + '</b><span class="cn">';
       each(c[1], function (n) { h += '<a class="tel" href="tel:' + n[1] + '">' + n[0] + '</a>'; });
-      h += '</td><td class="m">' + esc(c[2]) + '</td></tr>';
+      h += '</span><small>' + esc(c[2]) + '</small></div>';
     });
     $('contacts').innerHTML = h;
   }
@@ -1297,6 +1297,12 @@
     var t = $('rType').value, obs = [], title = $('rTitle').value.replace(/^\s+|\s+$/g, ''), it, e, o;
     if (pendLat === null) { alert('Please set a location first.'); return; }
     if (!title) { title = TYPES[t].label + (t === 'volcano' ? ' observation' : ' report'); }
+    if (title.length > 120) { alert('The headline is too long. Please keep it under 120 characters.'); return; }
+    if (pendLat < 3 || pendLat > 23 || pendLng < 114 || pendLng > 129) { alert('This location is outside the Philippines. Please pick a spot inside the Philippines.'); return; }
+    if ($('rPlace').value.length > 200 || $('rDesc').value.length > 2000) { alert('The place name or details are too long.'); return; }
+    var numOk = function (id, max) { var v = $(id).value, n; if (v === '') { return true; } n = parseFloat(v); return isFinite(n) && n >= 0 && n <= max; };
+    if (t === 'flood' && !(numOk('rDepth', $('rUnit').value === 'm' ? 100 : 10000) && numOk('rFDur', 720))) { alert('Please check the water depth and the hours flooded. They must be numbers from 0 up, and realistic.'); return; }
+    if (t === 'fire' && !numOk('rBurn', 720)) { alert('Please check how long the fire has been burning. It must be a number between 0 and 720 hours.'); return; }
     if (t === 'flood') {
       if ($('rDepth').value) { obs.push(['Water depth', $('rDepth').value + ' ' + $('rUnit').value]); }
       if ($('rFDur').value) { obs.push(['Flooded for', $('rFDur').value + ' hours']); }
@@ -1433,6 +1439,16 @@
     el.innerHTML = h;
   }
   function renderAdv() { var b = $('advNew'); if (b) { b.hidden = !(canAdv() && !advForm); } renderAdvForm(); renderAdvList(); }
+  /* Short privacy notice. We use no ad or marketing cookies; this tells people what is stored on their device. Not a consent gate. */
+  function initNotice() {
+    var seen = false, d;
+    try { seen = window.localStorage.getItem('datasaster_notice') === '1'; } catch (e) { seen = false; }
+    if (seen || $('noticeBar')) { return; }
+    d = document.createElement('div'); d.id = 'noticeBar'; d.setAttribute('role', 'region'); d.setAttribute('aria-label', 'Privacy notice');
+    d.innerHTML = '<span>DATAsaster saves your settings, reports you post from this device and a random sign-in ID in your browser so the app works. No ads. <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></span><button class="btn sm primary" id="noticeOk" type="button">OK</button>';
+    document.body.appendChild(d);
+    $('noticeOk').addEventListener('click', function () { try { window.localStorage.setItem('datasaster_notice', '1'); } catch (e) {} if (d.parentNode) { d.parentNode.removeChild(d); } });
+  }
   var toastT = null;
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.className = 'toast show'; if (toastT) { clearTimeout(toastT); } toastT = setTimeout(function () { t.className = 'toast'; }, 2200); }
 
@@ -1761,12 +1777,12 @@
     $('btnSet').innerHTML = icon('sliders', 15) + '<span class="lbl"> Settings</span>';
     $('btnRev').innerHTML = icon('list', 15) + '<span class="lbl"> Review</span>';
     $('btnRev').addEventListener('click', function () { showView(viewing === 'review' ? 'dash' : 'review'); });
-    $('btnRep').innerHTML = icon('plus', 15) + '<span class="lbl"> Report incident</span>';
+    $('btnRep').innerHTML = icon('plus', 15) + '<span class="lbl"> Report incident</span><span class="lbl2"> Report</span>';
     $('btnLayers').innerHTML = icon('layers', 15) + ' Live layers';
     $('newsRef').innerHTML = icon('refresh', 13) + ' Refresh';
     $('icS').innerHTML = icon('search', 15);
     $('rX').innerHTML = icon('x');
-    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews(); renderAdv();
+    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews(); renderAdv(); initNotice();
     initMap(); refresh(); applyLayers(); renderLegend();
 
     $('q').addEventListener('input', function () { query = this.value.toLowerCase(); refresh(); });
