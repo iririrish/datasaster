@@ -35,6 +35,11 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 
 - **Phone layout:** on a real phone check all four tabs, the forecast layer with the legend open, Settings, the Review screen (admins), and landscape orientation. The category chips scroll sideways inside their row by design.
 
+- **Author name and the new panels:** publish the new rules first, then post a report with a name and one without (both must work); check the name shows in the feed and details; check the phone News tab switch and the desktop side-by-side layout with a real advisory; check the report form buttons are not covered by the privacy notice.
+
+- **Media accounts and password change (untested live):** republish the rules; create a test media account (see ADMIN_GUIDE.md); post a report (outlet name shows, no resolve/delete); run `security-test.js` as media (expects all refused); try Change password with a wrong and a right current password; check an owner cannot be created by mistake with `role: media`.
+- **New Settings, footer, phone filters:** click through every section on desktop and a real phone; check the Filters dropdown, footer links (each should scroll or filter correctly) and the Help tab.
+
 ## Partially Implemented
 - Street view: link works without a key; embedded view needs `MAPS_EMBED_KEY` (empty). firebase-config.js.
 - App Check: client activates with an Enterprise key; **enforcement status unknown**. 
@@ -68,6 +73,9 @@ Audit of the uploaded files (app.js 1,623 lines, cloud.js, data.js, firestore.ru
 - Automatic "resolved after N days" rule; remember legend open/closed; push alerts when closed (needs Cloud Functions, Blaze plan).
 
 ## Configuration Required (manual)
+- Fill `APP_INFO` in `js/data.js` (contact email, and optional changelog, documentation and help URLs) to show those About rows. Fill the email in `partner.html`, `privacy.html`, `terms.html`.
+- Republish `firestore.rules` (media role). Add media accounts with ADMIN_GUIDE.md.
+- GitHub rulesets on a private repo are not enforced on the free plan; rely on History and Vercel rollback.
 - Replace `https://YOUR-SITE.vercel.app` in `index.html`, `sitemap.xml`, `robots.txt`. Fill the contact email in `privacy.html` and `terms.html`, and have your adviser read both pages.
 - In Google Cloud > APIs & Services > Credentials, restrict the Firebase browser API key to your site's domain (and the Maps Embed key if you use one). The Firebase config and reCAPTCHA site key in the page are public by design; there are no private keys in the repo.
 - After deploying, test the social preview (paste your link into a Facebook or LinkedIn debugger) and run Lighthouse on the live site.

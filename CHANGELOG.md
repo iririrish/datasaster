@@ -210,6 +210,38 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 - Not done on purpose: cookie consent gating (no ad or marketing cookies), moving secrets (none are secret), a honeypot (App Check and the rules are the real spam defence), a Content-Security-Policy (the app uses inline scripts; a wrong policy would break it).
 - Tests: headless Chrome with sample data checked links and assets (none missing), the notice bar, the header at 320, 360 and 390 px, the three new pages, and no script errors. Form validation was checked by code only. Real-phone, Lighthouse and social-preview tests were not run.
 
+## Optional author name, advisories/headlines panels, 3-day default - Date unknown
+### Added
+- **Optional author name** on reports ("Your name (optional)", up to 40 characters, blank = anonymous). Stored in a new `author` field, shown in the feed row and the report details as "by <name>", with a note that it is typed by the poster and not verified. Control characters and `<` `>` are stripped. Mentioned in the Privacy Policy and the Terms (no impersonation).
+- **Two distinct panels** for "Official advisories" and "Latest headlines": on desktop side by side, advisories on the left with an accent edge, an OFFICIAL tag and card-style entries; headlines on the right as a plain list with a NEWS tag. On phones the News tab has a two-button switch (Official advisories with a live count, News headlines) with a short fade-in between them. Earlier advisories open with a rotating arrow. Motion is turned off for people who prefer reduced motion.
+### Changed
+- Default date range is now **Past 3 days** (was 7).
+### Fixed
+- The privacy notice bar sat above pop-ups and could cover the report form's Post and Cancel buttons; it now sits below them.
+### Technical Changes
+- Files modified: `firestore.rules` (`author` allowed, string up to 40, optional so older clients and old reports keep working), `js/cloud.js`, `js/app.js`, `index.html`, `css/style.css`, `privacy.html`, `terms.html`, `sw.js` (cache `v25` to `v26`), docs. **Rules must be re-published, or posting from the new app will be refused.**
+### Notes
+- Tested in headless Chrome with sample data: default shows Past 3 days; the author flow (local mode) shows the cleaned name in the feed; tab switch works and only one panel shows on phones; no sideways scrolling; no script errors. Advisory cards were checked with stand-in sample markup because advisories need Firebase. Posting with an author to the real database was not tested.
+
+## Media accounts, Settings rebuild, footer, phone fixes - Date unknown
+### Added
+- **Media accounts** (`admins/<uid>` with `role: media`, `outlet`). They can post reports shown with the outlet name ("Media report", outlet in bold). They cannot resolve, verify or delete anything, including their own reports; the public can still flag any report ("Report as fake or wrong"). The rules enforce this: the `media` field on a report must equal the account's `outlet`, media accounts are not treated as owners or moderators (`isOwner` now excludes `media`), cannot read flags or write audit entries.
+- **Change password** (Settings > Account): re-checks the current password, then updates it; clear messages for wrong password, weak password, too many attempts, offline.
+- **New Settings page:** left sidebar (Appearance & map, Feed & data, Alerts, Account, Admin tools for staff, Privacy & security, About), search across all settings, "Saved on this device" indicator, a Reset button per section that only resets that section (with confirmation), tooltips, empty states, responsive layout (sections become a scrolling tab row on phones). Only settings the app really supports are shown. About shows logo, version/build, release notes, links to Privacy, Terms and Partner pages, open-source licenses; rows for Changelog, Documentation, Help center, Contact support and Report a bug appear only when `APP_INFO` in `js/data.js` has the URL or email.
+- **Expired and withdrawn advisories switch** on the homepage advisories panel, off by default; also in Settings > Feed & data.
+- **Website footer** modelled on the layout requested: brand block, Emergency & Reporting, Live Monitoring, Official Sources columns and an Emergency hotlines bar built from `CONTACTS`. On phones the Help tab shows contact cards instead.
+- `partner.html` (how agencies and media can take part).
+- Phone feed: Search plus a Filters dropdown (badge shows how many filters are changed) so the four selects no longer take space; category chips have one fixed size.
+### Changed
+- Contacts: every phone number is on its own tap-to-call row.
+- Settings dropdowns (Smallest earthquake, Auto refresh and the others) now share one control width, show a short description, and are greyed out when the feature they depend on is off. The selected value saves and survives a reload (checked).
+- Privacy Policy and Terms mention media accounts. The "Flag report" button is now "Report as fake or wrong".
+### Technical Changes
+- Files added: `partner.html`. Files modified: `firestore.rules`, `js/cloud.js`, `js/app.js`, `js/data.js` (`APP_INFO`), `index.html`, `css/style.css`, `privacy.html`, `terms.html`, `sitemap.xml`, `sw.js` (cache `v26` to `v27`), docs. **Rules must be republished.** No new collections.
+### Notes
+- Tested in headless Chrome (desktop and 390 px phone) with sample data: settings search, saving, per-section reset (theme kept when the Feed section is reset), filter badge, footer, no sideways scrolling, no script errors. Mock test of the media role in `cloud.js` passed. **Not tested against live Firebase:** media posting, rules for media, password change. Not tested on a real phone.
+- Not added on purpose: "Advertise" and pricing pages (no advertising exists), a Help center and documentation links (none exist yet), granular cookie consent.
+
 ## [Audit] - Documentation created
 ### Added
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.

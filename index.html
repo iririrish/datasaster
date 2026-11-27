@@ -18,14 +18,14 @@
 <meta property="og:site_name" content="DATAsaster">
 <meta property="og:title" content="DATAsaster: Philippine Disaster Map and Reports">
 <meta property="og:description" content="Floods, fires, earthquakes, volcanoes, typhoons and landslides on one map, with community reports and official advisories. Student demo, not an official warning channel.">
-<meta property="og:image" content="https://datasaster.vercel.app//og-image.png">
+<meta property="og:image" content="https://YOUR-SITE.vercel.app/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="DATAsaster logo with the text Philippine disaster map, community reports and official advisories">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="DATAsaster: Philippine Disaster Map and Reports">
 <meta name="twitter:description" content="Floods, fires, earthquakes, volcanoes, typhoons and landslides on one map, with community reports and official advisories.">
-<meta name="twitter:image" content="https://datasaster.vercel.app//og-image.png">
+<meta name="twitter:image" content="https://YOUR-SITE.vercel.app/og-image.png">
 <link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="css/style.css">
 
@@ -55,8 +55,8 @@
     <label for="range">Date</label>
     <select id="range">
       <option value="today">Today</option>
-      <option value="3d">Past 3 days</option>
-      <option value="7d" selected>Past 7 days</option>
+      <option value="3d" selected>Past 3 days</option>
+      <option value="7d">Past 7 days</option>
       <option value="30d">Past 30 days</option>
       <option value="all">All time</option>
       <option value="day">Pick a day</option>
@@ -65,11 +65,11 @@
   </div>
 </nav>
 
-<main class="work">
+<main class="work" id="workMain">
   <section class="feed">
     <div class="fh">
-      <div class="search"><span id="icS"></span><input type="text" id="q" placeholder="Search place, title or source"></div>
-      <div class="fr">
+      <div class="srow"><div class="search"><span id="icS"></span><input type="text" id="q" placeholder="Search place, title or source"></div><button class="btn fbtn" id="fToggle" type="button" aria-expanded="false" aria-controls="fFilters">Filters <span class="cnt" id="fCnt" hidden>0</span></button></div>
+      <div class="fr" id="fFilters">
         <select id="nearSel"><option value="0">Anywhere</option><option value="5">Within 5 km</option><option value="10">Within 10 km</option><option value="25">Within 25 km</option><option value="50">Within 50 km</option></select>
         <select id="statusSel"><option value="active">Active</option><option value="resolved">Resolved</option><option value="all">All statuses</option></select>
         <select id="sevSel"><option value="-1">Any severity</option><option value="0">Low</option><option value="1">Moderate</option><option value="2">High</option><option value="3">Critical</option></select>
@@ -93,25 +93,82 @@
   </section>
 </main>
 
-<section class="sec" id="advSec">
-  <h2>Official advisories <span class="sp"></span><button class="btn sm" data-advnew="1" id="advNew" hidden>Publish advisory</button></h2>
-  <div id="advForm"></div>
-  <div class="list" id="advList"></div>
-  <div class="m" style="margin-top:8px">Advisories are posted by verified agency accounts. Always read the original source. DATAsaster is not an official warning channel.</div>
-</section>
+<div class="infogrid" id="infoGrid">
+  <div class="subtabs" id="infoTabs" role="tablist" aria-label="Official advisories or news headlines">
+    <button type="button" role="tab" id="tabAdv" class="on" aria-selected="true" data-infotab="adv">Official advisories <span class="cnt" id="advCount">0</span></button>
+    <button type="button" role="tab" id="tabNews" aria-selected="false" data-infotab="news">News headlines</button>
+  </div>
 
-<section class="sec" id="newsSec">
-  <h2>Latest headlines <span class="sp"></span><select id="newsSrc"></select><button class="btn sm" id="newsRef"></button></h2>
-  <div class="list" id="newsList"></div>
-  <div class="m" style="margin-top:8px" id="newsMeta"></div>
-</section>
+  <section class="sec pcard padv" id="advSec" aria-labelledby="advH">
+    <h2 id="advH"><span class="tag official">OFFICIAL</span> Advisories <span class="sp"></span><button class="btn sm" data-advnew="1" id="advNew" hidden>Publish advisory</button></h2>
+    <p class="psub">Posted by verified agency accounts. Always read the original source. DATAsaster is not an official warning channel.</p>
+    <div class="advtools"><label class="swl"><button type="button" class="sw" id="advOldSw" data-tog="showOldAdv" aria-pressed="false" aria-label="Show expired and withdrawn advisories"></button><span>Show expired and withdrawn<span id="advOldCnt"></span></span></label></div>
+    <div id="advForm"></div>
+    <div class="list" id="advList"></div>
+  </section>
+
+  <section class="sec pcard pnews" id="newsSec" aria-labelledby="newsH">
+    <h2 id="newsH"><span class="tag news">NEWS</span> Latest headlines <span class="sp"></span><select id="newsSrc" aria-label="News source"></select><button class="btn sm" id="newsRef"></button></h2>
+    <p class="psub">From news outlets. Not verified and not official.</p>
+    <div class="list" id="newsList"></div>
+    <div class="m" style="margin-top:8px" id="newsMeta"></div>
+  </section>
+</div>
 
 <footer class="sitefoot" id="contactSec">
+  <div class="fgrad" aria-hidden="true"></div>
   <div class="fwrap">
-    <h2>Emergency contacts</h2>
-    <p class="m">DATAsaster is not an official response channel. Reports posted here are not sent to any agency. In an emergency, call these numbers directly.</p>
-    <div class="cgrid" id="contacts"></div>
-    <p class="fine"><a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms and Conditions</a></p>
+    <div class="fcontacts">
+      <h2>Emergency contacts</h2>
+      <p class="m">DATAsaster is not an official response channel. Reports posted here are not sent to any agency. In an emergency, call these numbers directly.</p>
+      <div class="cgrid" id="contacts"></div>
+    </div>
+    <div class="fcols">
+      <div class="fcol fbrand">
+        <div class="fb"><img src="icon-192.png" width="40" height="40" alt="DATAsaster logo"><b>DATAsaster</b></div>
+        <span class="fbadge">Student demo</span>
+        <p>Disaster information for the Philippines: a live hazard map, community reports, official advisories and emergency contacts. It is not an official warning channel.</p>
+      </div>
+      <nav class="fcol" aria-label="Emergency and reporting">
+        <h3>Emergency &amp; Reporting</h3>
+        <ul>
+          <li><button type="button" class="flink" data-openreport="1">Report an incident</button></li>
+          <li><button type="button" class="flink" data-goto="hotbar">Emergency hotlines</button></li>
+          <li><button type="button" class="flink" data-goto="advSec">Official advisories</button></li>
+          <li><a class="flink" href="partner.html">Partner with us (agencies and media)</a></li>
+          <li><button type="button" class="flink" data-account="1">Agency and media login</button></li>
+          <li><a class="flink" href="privacy.html">Privacy Policy</a></li>
+          <li><a class="flink" href="terms.html">Terms and Conditions</a></li>
+        </ul>
+      </nav>
+      <nav class="fcol" aria-label="Live monitoring">
+        <h3>Live Monitoring</h3>
+        <ul>
+          <li><button type="button" class="flink" data-goto="workMain">Live map</button></li>
+          <li><button type="button" class="flink" data-goto="workMain">Incident feed</button></li>
+          <li><button type="button" class="flink" data-goto="newsSec">Latest headlines</button></li>
+          <li><button type="button" class="flink" data-ftf="flood">Flooding</button></li>
+          <li><button type="button" class="flink" data-ftf="fire">Fire</button></li>
+          <li><button type="button" class="flink" data-ftf="quake">Earthquakes</button></li>
+          <li><button type="button" class="flink" data-ftf="volcano">Volcanic activity</button></li>
+          <li><button type="button" class="flink" data-ftf="typhoon">Typhoons</button></li>
+          <li><button type="button" class="flink" data-ftf="landslide">Landslides</button></li>
+        </ul>
+      </nav>
+      <nav class="fcol" aria-label="Official sources">
+        <h3>Official Sources</h3>
+        <ul>
+          <li><a class="flink" href="https://www.pagasa.dost.gov.ph" target="_blank" rel="noopener noreferrer">PAGASA (weather)</a></li>
+          <li><a class="flink" href="https://www.phivolcs.dost.gov.ph" target="_blank" rel="noopener noreferrer">PHIVOLCS (quakes, volcanoes)</a></li>
+          <li><a class="flink" href="https://ndrrmc.gov.ph" target="_blank" rel="noopener noreferrer">NDRRMC</a></li>
+          <li><a class="flink" href="https://earthquake.usgs.gov" target="_blank" rel="noopener noreferrer">USGS Earthquakes</a></li>
+          <li><a class="flink" href="https://www.emsc-csem.org" target="_blank" rel="noopener noreferrer">EMSC</a></li>
+          <li><a class="flink" href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a></li>
+          <li><a class="flink" href="https://www.rainviewer.com" target="_blank" rel="noopener noreferrer">RainViewer</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="hotbar" id="hotbar"><span class="hl">Emergency hotlines:</span><span class="hlist" id="hotList"></span></div>
     <p class="fine">DATAsaster is not an official government site. Sample and community records are unconfirmed. For real warnings use PAGASA, PHIVOLCS, NDRRMC and BFP.</p>
   </div>
 </footer>
@@ -171,6 +228,8 @@
     <div class="row2"><button class="btn" id="rPick" type="button">Pick on map</button><button class="btn" id="rGps" type="button">Use my location</button></div>
     <div class="hint" id="rLoc">No location set</div>
     <label class="l">Place name</label><input type="text" id="rPlace" maxlength="200" placeholder="Barangay, city">
+    <label class="l" for="rAuthor">Your name (optional)</label><input type="text" id="rAuthor" maxlength="40" autocomplete="off" placeholder="Leave blank to stay anonymous">
+    <div class="hint">Shown publicly next to your report. It is not checked, so it does not prove who you are.</div>
     <label class="l">Details</label><textarea id="rDesc" maxlength="2000"></textarea>
     <div class="acts" style="justify-content:flex-end"><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rSave">Post report</button></div>
   </div>

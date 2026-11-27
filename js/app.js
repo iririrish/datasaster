@@ -62,7 +62,10 @@
     list: '<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
     news: '<rect x="4" y="4" width="16" height="16" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/>',
     phone: '<path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
-    nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>'
+    nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+    user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
   };
   function icon(n, s) { s = s || 16; return '<svg class="ic" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' + (IC[n] || '') + '</svg>'; }
 
@@ -104,7 +107,7 @@
   var MAXPHOTOS = 3, IMG_MAX = 200000;
 
   /* ---------- state ---------- */
-  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { reports: true, radar: true, cloud: false, rain: false, river: false, fire: false, storm: false, fcmap: false } };
+  var DEFAULTS = { theme: 'dark', basemap: 'dark', region: 'ph', cats: { flood: true, fire: true, quake: true, volcano: true, typhoon: true, landslide: true }, sources: {}, demo: true, liveQuakes: true, liveNews: true, showUnverified: true, showPhotos: true, showOldAdv: false, refresh: 0, minMag: 3, alerts: false, alertKm: 25, layers: { reports: true, radar: true, cloud: false, rain: false, river: false, fire: false, storm: false, fcmap: false } };
   SRC_KEYS.forEach(function (k) { DEFAULTS.sources[k] = true; });
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   var settings = clone(DEFAULTS);
@@ -118,11 +121,11 @@
     }
   })();
   if (typeof LAYERS !== 'undefined' && !LAYERS.some(function (l) { return l[0] === 'fcmap'; })) { LAYERS.push(['fcmap', 'Forecast map', 'Hourly rain and wind forecast with a timeline, next 4 days']); }
-  function saveSettings() { lsSet('datasaster_settings', settings); }
+  function saveSettings() { flashSaved(lsSet('datasaster_settings', settings)); }
 
   var demo = [], liveQuakes = [], userItems = lsGet('datasaster_reports', []), cloudRaw = [], cloudItems = [], detailId = null, userPos = null, nearKm = 0, flagged = lsGet('datasaster_flagged', {}), flagList = [], flagsOn = false, pendingHash = '', firstCloud = true, seenAlert = {}, lastPostAt = lsGet('datasaster_lastpost', 0), GROUP_KM = 1;
   var newsItems = [], newsState = 'loading', newsLive = 0, quakeState = '';
-  var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '7d', dayVal = '', selId = null, newsF = 'all';
+  var tf = 'all', trF = 'all', statusF = 'active', sevF = -1, sortBy = 'latest', query = '', range = '3d', dayVal = '', selId = null, newsF = 'all';
   var map = null, tiles = null, mlayer = null, markers = {}, pickMark = null, picking = false, pendLat = null, pendLng = null, pendImgs = [], photoBusy = 0, lbList = [], lbIdx = 0;
   var legendOpen = !(window.innerWidth && window.innerWidth <= 900), panelOpen = false;
   var lstat = {}, lgroups = {}, lupd = {};
@@ -233,7 +236,7 @@
   var assessAll = [];
   function assessFor(cid) { var out = []; each(assessAll, function (a) { if (a.reportId === cid && ASTAT[a.status]) { out.push(a); } }); return out; }
   function trustLine(r) {
-    var s = esc(r.srcLabel) + (r.demo ? ' (sample)' : ''), al, k;
+    var s = esc(r.srcLabel) + (r.demo ? ' (sample)' : '') + (r.media ? ' \u00b7 <b>' + esc(r.media) + '</b>' : '') + (r.author ? ' \u00b7 by ' + esc(r.author) : ''), al, k;
     if (r.cloud) { al = assessFor(r.cid); if (al.length) { s += ' \u00b7 <b>'; for (k = 0; k < al.length && k < 2; k++) { s += (k ? ', ' : '') + esc(String(al[k].agency).substring(0, 30)) + ': ' + ASTAT[al[k].status]; } s += '</b>'; } }
     if (r.trust === 'unverified') { s += ' \u00b7 <span class="warn">Unverified</span>'; }
     if (r.pending) { s += ' \u00b7 <span class="warn">Pending upload</span>'; }
@@ -250,7 +253,16 @@
   function statusLine(r, t) {
     return '<div class="m"><span class="dot" style="--c:' + (r.resolved ? RESCOL : SEVCOL[r.sev]) + '"></span>' + (r.resolved ? 'Resolved' : SEV[r.sev]) + ' \u00b7 ' + t.label + ' \u00b7 ' + ago(r.time) + '</div>';
   }
+  function updFilterCount() {
+    var c = 0, b = $('fCnt');
+    if ($('nearSel').value !== '0') { c++; }
+    if ($('statusSel').value !== 'active') { c++; }
+    if ($('sevSel').value !== '-1') { c++; }
+    if ($('sortSel').value !== 'latest') { c++; }
+    if (b) { b.textContent = c; b.hidden = !c; }
+  }
   function renderFeed() {
+    updFilterCount();
     var rows = $('rows'), par = rows.parentNode, sa = rows.scrollTop, sb = par ? par.scrollTop : 0, sy = window.pageYOffset || 0;
     renderFeedInner();
     rows.scrollTop = sa; if (par) { par.scrollTop = sb; }
@@ -835,12 +847,13 @@
 
   /* ---------- detail ---------- */
   function noteFor(r) {
+    if (r.cloud && r.media) { return 'Posted by the media account of ' + r.media + '. Media accounts are set up by the DATAsaster team, but the report itself is not verified by an agency. Treat the details as unconfirmed.'; }
     if (r.cloud && r.trust === 'verified') { return 'Community report reviewed by a DATAsaster admin. Still not an official agency record.'; }
     if (r.live) { return 'Instrument data from ' + r.srcLabel + '. PHIVOLCS publishes the official Philippine bulletin, which may differ slightly.'; }
     if (r.trust === 'official') { return 'Sample record modelled on an agency bulletin. For real warnings, use the agency website.'; }
     if (r.trust === 'news') { return 'Sample record modelled on a news report. Real headlines are listed under Latest headlines.'; }
     if (r.trust === 'verified') { return 'Sample of a report checked against a responder or barangay update.'; }
-    return 'Not reviewed by any agency or moderator. Treat the details and severity as unconfirmed.';
+    return 'Not reviewed by any agency or moderator. Treat the details and severity as unconfirmed.' + (r.author ? ' The name shown was typed by the person who posted it and is not verified.' : '');
   }
   function kv(rows) { var h = '<table class="kv">'; each(rows, function (o) { h += '<tr><td>' + esc(o[0]) + '</td><td>' + esc(o[1]) + '</td></tr>'; }); return h + '</table>'; }
   function openDetail(id) {
@@ -872,7 +885,7 @@
     if (r.own) { h += '<button class="btn" data-resolve="' + r.id + '">' + (r.resolved ? 'Reopen' : 'Mark as resolved') + '</button>'; if (!r.cloud || r.mine || CLOUD.owner) { h += '<button class="btn danger" data-del="' + r.id + '">' + (r.cloud && !r.mine ? 'Delete report (admin)' : 'Delete my report') + '</button>'; } }
     if (r.cloud && CLOUD.admin && CLOUD.can(r.type)) { h += '<button class="btn" data-verify="' + r.id + '">' + (r.trust === 'verified' ? 'Remove verified' : 'Mark verified') + '</button>'; }
     if (r.cloud) { h += '<button class="btn" data-share="' + r.id + '">Share link</button>'; }
-    if (r.cloud && !r.mine) { h += flagged[r.cid] ? '<button class="btn" disabled>Flagged</button>' : '<button class="btn" data-flag="' + r.id + '">Flag report</button>'; }
+    if (r.cloud && !r.mine) { h += flagged[r.cid] ? '<button class="btn" disabled>Flagged</button>' : '<button class="btn" data-flag="' + r.id + '">Report as fake or wrong</button>'; }
     h += '</div><div id="svBox"></div>';
     th = threadOf(r);
     if (th.length > 1) {
@@ -1032,10 +1045,17 @@
     var h = '';
     each(CONTACTS, function (c) {
       h += '<div class="cc' + (c[3] ? ' big' : '') + '"><b>' + esc(c[0]) + '</b><span class="cn">';
-      each(c[1], function (n) { h += '<a class="tel" href="tel:' + n[1] + '">' + n[0] + '</a>'; });
+      each(c[1], function (n) { h += '<a class="tel" href="tel:' + n[1] + '">' + icon('phone', 14) + '<span>' + n[0] + '</span></a>'; });
       h += '</span><small>' + esc(c[2]) + '</small></div>';
     });
     $('contacts').innerHTML = h;
+    var SHORT = { 'National Emergency Hotline': 'National Emergency', 'Philippine Red Cross': 'Red Cross', 'Philippine National Police': 'PNP', 'Bureau of Fire Protection': 'BFP', 'NDRRMC Operations Center': 'NDRRMC', 'Philippine Coast Guard': 'Coast Guard' }, hb = '';
+    each(CONTACTS, function (c) {
+      hb += '<span class="hi"><b>' + esc(SHORT[c[0]] || c[0]) + ':</b> ';
+      each(c[1], function (n) { hb += '<a href="tel:' + n[1] + '">' + n[0] + '</a>'; });
+      hb += '</span>';
+    });
+    if ($('hotList')) { $('hotList').innerHTML = hb; }
   }
 
   /* ---------- report form ---------- */
@@ -1075,7 +1095,7 @@
   function openReport(keep) {
     if (!keep) {
       $('rType').value = tf === 'all' ? 'flood' : tf; $('rSev').value = '0';
-      each(['rTitle', 'rDesc', 'rPlace', 'rDepth', 'rFDur', 'rBurn', 'rStruct', 'rPhoto'], function (id) { $(id).value = ''; });
+      each(['rTitle', 'rDesc', 'rPlace', 'rAuthor', 'rDepth', 'rFDur', 'rBurn', 'rStruct', 'rPhoto'], function (id) { $(id).value = ''; });
       $('rEvac').selectedIndex = 0;
       clearChecks('efx'); clearChecks('obs'); clearChecks('tobs'); clearChecks('lobs');
       $('rWind').selectedIndex = 0; $('rRain').selectedIndex = 0; $('rCause').selectedIndex = 0;
@@ -1184,7 +1204,7 @@
       if (d.obs && d.obs.length) { each(d.obs.slice(0, 12), function (o) { if (o && o.k != null) { obs.push([String(o.k).substring(0, 80), String(o.v).substring(0, 200)]); } }); }
       if (d.imgs && d.imgs.length) { each(d.imgs.slice(0, MAXPHOTOS), function (s) { if (typeof s === 'string' && s.length < 230000 && jpegRe.test(s)) { imgs.push(s); } }); }
       if (!imgs.length && typeof d.img === 'string' && d.img.length < 400000 && jpegRe.test(d.img)) { imgs.push(d.img); }
-      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!((CLOUD.admin && CLOUD.can(d.type)) || (CLOUD.uid && d.uid === CLOUD.uid)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : 'Community report', pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
+      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!((CLOUD.admin && CLOUD.can(d.type)) || (CLOUD.uid && d.uid === CLOUD.uid && !CLOUD.media)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : (typeof d.media === 'string' && d.media ? 'Media report' : 'Community report'), pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), author: typeof d.author === 'string' ? d.author.substring(0, 40) : '', media: typeof d.media === 'string' ? d.media.substring(0, 60) : '', desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
     });
     cloudItems = out;
   }
@@ -1316,6 +1336,7 @@
     if ($('rEvac').value) { obs.push(['Evacuation', $('rEvac').value]); }
     if (photoBusy > 0) { alert('Your photos are still being prepared. Please try again in a moment.'); return; }
     it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImgs[0] || '', imgs: pendImgs.slice(0, MAXPHOTOS), obsTitle: 'Observations', obs: obs };
+    it.author = $('rAuthor').value.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/^\s+|\s+$/g, '').substring(0, 40);
     if (cloudOn() && CLOUD.uid) {
       if (Date.now() - lastPostAt < 120000) { alert('Please wait ' + Math.ceil((120000 - (Date.now() - lastPostAt)) / 1000) + ' seconds before posting another report.'); return; }
       it.id = 'c' + CLOUD.add(it, postFail);
@@ -1417,8 +1438,12 @@
     each(advAll, function (a) { if (advActive(a)) { act.push(a); } else { old.push(a); } });
     each(act, function (a) { h += advCard(a); });
     if (!act.length) { h += '<div class="empty">' + (cloudOn() ? 'No active official advisories right now.' : 'Official advisories need the shared connection, which is not available.') + '</div>'; }
-    if (old.length) { h += '<details><summary class="m" style="padding:10px 4px;cursor:pointer">Expired and withdrawn (' + old.length + ')</summary>'; each(old, function (a) { h += advCard(a); }); h += '</details>'; }
+    if (old.length && settings.showOldAdv) { h += '<div class="advold"><div class="m">Expired and withdrawn (' + old.length + ')</div>'; each(old, function (a) { h += advCard(a); }); h += '</div>'; }
     el.innerHTML = h;
+    var osw = $('advOldSw');
+    if (osw) { osw.className = 'sw' + (settings.showOldAdv ? ' on' : ''); osw.setAttribute('aria-pressed', settings.showOldAdv ? 'true' : 'false'); }
+    if ($('advOldCnt')) { $('advOldCnt').textContent = old.length ? ' (' + old.length + ')' : ''; }
+    if ($('advCount')) { $('advCount').textContent = act.length; }
   }
   function renderAdvForm() {
     var el = $('advForm'), v, o = '', h;
@@ -1457,61 +1482,163 @@
   function trow(key, label, desc, on) { return '<div class="trow"><div><b>' + label + '</b>' + (desc ? '<small>' + desc + '</small>' : '') + '</div><button class="sw' + (on ? ' on' : '') + '" data-tog="' + key + '" aria-label="' + label + '"></button></div>'; }
   function tile(attr, val, ic, label, sub, on) { return '<button class="opt' + (on ? ' on' : '') + '" ' + attr + '="' + val + '">' + icon(ic, 18) + '<span><b>' + label + '</b><small>' + sub + '</small></span></button>'; }
   function sect(ic, title, sub, body) { return '<section class="sc"><h3><span class="bx">' + icon(ic, 16) + '</span><span>' + title + '<small>' + sub + '</small></span></h3>' + body + '</section>'; }
+  /* ---------- Settings: sidebar, search, per-section reset, save indicator ---------- */
+  var svPanel = 'appearance', svQuery = '', svSaveT = null;
+  var RESETS = {
+    appearance: ['theme', 'basemap', 'region'],
+    feed: ['cats', 'sources', 'demo', 'showUnverified', 'showPhotos', 'showOldAdv', 'liveQuakes', 'minMag', 'liveNews', 'refresh'],
+    alerts: ['alerts', 'alertKm']
+  };
+  function tip(t) { return ' <span class="tip" tabindex="0" role="note" title="' + esc(t) + '" aria-label="' + esc(t) + '">?</span>'; }
+  function selRow(label, desc, key, opts, cur, off, tipText) {
+    var h = '<div class="trow"><div><b>' + label + (tipText ? tip(tipText) : '') + '</b>' + (desc ? '<small>' + desc + '</small>' : '') + '</div><select class="ssel" data-sel="' + key + '"' + (off ? ' disabled' : '') + ' aria-label="' + label + '">';
+    each(opts, function (o) { h += '<option value="' + o[0] + '"' + (String(cur) === String(o[0]) ? ' selected' : '') + '>' + o[1] + '</option>'; });
+    return h + '</select></div>';
+  }
+  function mkRow(label, desc, kw, html, block) {
+    var h = block ? '<div class="svrow"><div class="svrl"><b>' + esc(label) + '</b>' + (desc ? '<small>' + esc(desc) + '</small>' : '') + '</div>' + html + '</div>' : html;
+    return { t: label, d: desc || '', kw: kw || '', h: h };
+  }
+  function linkRow(label, desc, href, kw) {
+    return mkRow(label, desc, kw, '<div class="trow"><div><b>' + esc(label) + '</b>' + (desc ? '<small>' + esc(desc) + '</small>' : '') + '</div><a class="btn sm" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">Open</a></div>', false);
+  }
+  function acctRoleText() {
+    if (CLOUD.owner) { return 'Owner: you can verify, resolve and delete any shared report.'; }
+    if (CLOUD.role === 'agency') { return agencyNote(); }
+    if (CLOUD.media) { return 'Media account' + (CLOUD.outlet ? ': ' + esc(CLOUD.outlet) : '') + '. Your reports are shown under your outlet name. You can add reports. You cannot resolve or delete anything.'; }
+    return 'Signed in, but this account has no extra permissions.';
+  }
+  function svPanels() {
+    var s = settings, P = [], r, b, fg;
+    /* Appearance and map */
+    r = [];
+    r.push(mkRow('Theme', 'Dark for low light, light for daytime.', 'dark light colours mode', '<div class="opts">' + tile('data-theme-set', 'dark', 'moon', 'Dark', 'Low-light console', s.theme === 'dark') + tile('data-theme-set', 'light', 'sun', 'Light', 'Daylight contrast', s.theme === 'light') + '</div>', true));
+    r.push(mkRow('Basemap', 'The map style behind the markers.', 'map tiles street dark light', '<div class="opts">' + tile('data-base', 'dark', 'moon', 'Dark', 'Low-glare basemap', s.basemap === 'dark') + tile('data-base', 'street', 'pin', 'Street', 'Roads and labels', s.basemap === 'street') + tile('data-base', 'light', 'sun', 'Light', 'Pale basemap', s.basemap === 'light') + '</div>', true));
+    b = []; each(['ph', 'luzon', 'visayas', 'mindanao', 'ncr'], function (k) { b.push([k, REGION_NAMES[k]]); });
+    r.push(mkRow('Opening view', 'Where the map zooms to.', 'region luzon visayas mindanao manila', selRow('Opening view', 'Where the map zooms to.', 'region', b, s.region), false));
+    P.push({ id: 'appearance', label: 'Appearance & map', ic: 'moon', desc: 'Theme, basemap and where the map opens.', rows: r, reset: true });
+    /* Feed and data */
+    r = [];
+    b = '<div class="catchips">'; each(TORDER, function (t) { b += '<button class="cat' + (s.cats[t] ? ' on' : '') + '" data-tog="cat:' + t + '">' + icon(TYPES[t].ic, 15) + ' ' + TYPES[t].label + '</button>'; }); b += '</div><div class="hint">At least one category stays on.</div>';
+    r.push(mkRow('Categories', 'What appears in the feed and on the map.', 'hazard flood fire earthquake volcano typhoon landslide', b, true));
+    b = '<div class="srcgrid">'; each(SRC_KEYS, function (k) { b += '<div class="srci"><span>' + SRC[k].name + '</span><button class="sw' + (s.sources[k] !== false ? ' on' : '') + '" data-tog="src:' + k + '" aria-label="' + SRC[k].name + '"></button></div>'; }); b += '</div>';
+    r.push(mkRow('Sources', 'Agencies and news outlets to include.', 'pagasa phivolcs ndrrmc bfp usgs emsc news outlets abs gma rappler inquirer philstar', b, true));
+    r.push(mkRow('Sample records', 'Labelled demonstration incidents.', 'demo fake test', trow('demo', 'Sample records', 'Labelled demonstration incidents.', s.demo), false));
+    r.push(mkRow('Unverified reports', 'Community reports without review.', 'community unverified', trow('showUnverified', 'Unverified reports', 'Community reports without review.', s.showUnverified), false));
+    r.push(mkRow('Photos', 'Thumbnails in the feed and details.', 'images pictures', trow('showPhotos', 'Photos', 'Thumbnails in the feed and details.', s.showPhotos), false));
+    r.push(mkRow('Expired and withdrawn advisories', 'Also list advisories that are no longer current.', 'official agency advisory history', trow('showOldAdv', 'Expired and withdrawn advisories', 'Also list advisories that are no longer current, under the active ones.', s.showOldAdv), false));
+    r.push(mkRow('Live earthquakes', 'USGS and EMSC, updated every minute while the app is open.', 'quake usgs emsc', trow('liveQuakes', 'Live earthquakes', 'USGS and EMSC, updated every minute while the app is open.', s.liveQuakes), false));
+    b = []; each([2.5, 3, 4, 4.5, 5], function (mg) { b.push([mg, 'M' + mg.toFixed(1) + ' and above']); });
+    r.push(mkRow('Smallest earthquake', 'Hide weaker earthquakes from the live feeds.', 'magnitude quake', selRow('Smallest earthquake', s.liveQuakes ? 'Hide weaker earthquakes from the live feeds.' : 'Turn on Live earthquakes to use this.', 'minmag', b, s.minMag, !s.liveQuakes, 'A lower number shows more, weaker earthquakes. Most below M3.0 are not felt.'), false));
+    r.push(mkRow('Live headlines', 'Google News, from the selected outlets.', 'news', trow('liveNews', 'Live headlines', 'Google News, from the selected outlets.', s.liveNews), false));
+    r.push(mkRow('Auto refresh', 'Reload earthquakes, headlines and live layers on a timer.', 'update reload timer data', selRow('Auto refresh', 'Reload earthquakes, headlines and live layers on a timer while the app is open.', 'refresh', [['0', 'Off'], ['5', 'Every 5 minutes'], ['15', 'Every 15 minutes']], s.refresh, false, 'Uses mobile data each time it reloads.'), false));
+    r.push(mkRow('Install app', 'Add DATAsaster to your home screen.', 'pwa home screen offline', '<div class="trow"><div><b>Install app</b><small>' + (deferredPrompt ? 'Add DATAsaster to your home screen.' : 'iPhone: Share, then Add to Home Screen. Android or desktop: use Install in the browser menu.') + '</small></div>' + (deferredPrompt ? '<button class="btn sm" data-install="1">Install</button>' : '') + '</div>', false));
+    P.push({ id: 'feed', label: 'Feed & data', ic: 'layers', desc: 'What is shown, which sources are used and how often data reloads.', rows: r, reset: true });
+    /* Alerts */
+    r = [];
+    r.push(mkRow('Alerts', 'Notice while the app is open for new High or Critical shared reports near you and earthquakes M4.5 or stronger.', 'notification location nearby', trow('alerts', 'Alerts', 'Notice and notification while the app is open: new High or Critical shared reports near you, and new earthquakes M4.5 or stronger. Needs location permission.', s.alerts), false));
+    r.push(mkRow('Alert distance', 'How close a report must be.', 'km radius', selRow('Alert distance', s.alerts ? 'How close a report must be to alert you.' : 'Turn on Alerts to use this.', 'alertkm', [[10, 'Within 10 km'], [25, 'Within 25 km'], [50, 'Within 50 km'], [100, 'Within 100 km']], s.alertKm, !s.alerts, 'Distance is measured from your device location.'), false));
+    P.push({ id: 'alerts', label: 'Alerts', ic: 'alert', desc: 'Heads-up for serious reports and earthquakes. Works only while the app is open.', rows: r, reset: true });
+    /* Account */
+    r = [];
+    if (!cloudOn()) {
+      r.push(mkRow('Accounts', '', 'sign in', '<div class="empty">Accounts are not available because the shared connection is off.</div>', false));
+    } else if (CLOUD.email) {
+      r.push(mkRow('Signed in', 'Your account', 'email sign out logout', '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + acctRoleText() + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>', false));
+      r.push(mkRow('Change password', 'Use at least 8 characters.', 'password security', '<div class="svpw"><label class="l" for="cpOld">Current password</label><input type="password" id="cpOld" autocomplete="current-password"><label class="l" for="cpNew">New password</label><input type="password" id="cpNew" autocomplete="new-password" minlength="8"><label class="l" for="cpNew2">Repeat new password</label><input type="password" id="cpNew2" autocomplete="new-password" minlength="8"><div class="acts"><button class="btn primary" data-chgpw="1" id="cpBtn">Change password</button></div><div class="cpmsg" id="cpMsg" role="status" aria-live="polite"></div></div>', true));
+    } else {
+      r.push(mkRow('Sign in', 'For moderators, agencies and media accounts created by the DATAsaster team. Everyone else is signed in automatically and needs nothing here.', 'login admin agency media', '<div class="svpw"><label class="l" for="adEmail">Email</label><input type="text" id="adEmail" autocomplete="username"><label class="l" for="adPw">Password</label><input type="password" id="adPw" autocomplete="current-password"><div class="acts"><button class="btn primary" data-adminlogin="1">Sign in</button></div></div>', true));
+    }
+    P.push({ id: 'account', label: 'Account', ic: 'user', desc: 'Sign in, sign out and change your password.', rows: r, reset: false });
+    /* Admin tools */
+    if (CLOUD.admin) {
+      r = []; fg = flagGroups();
+      r.push(mkRow('Review reports', 'Open the list of reports you can assess, verify or resolve.', 'review queue', '<div class="trow"><div><b>Review reports</b><small>Open the list of reports you can assess, verify or resolve.</small></div><button class="btn sm" data-view="review">Open</button></div>', false));
+      if (CLOUD.owner) { r.push(mkRow('Audit log', 'The last 50 admin and agency actions.', 'history actions', auditHtml(), false)); }
+      r.push(mkRow('Export reports', 'Downloads the latest 200 shared reports as a CSV file.', 'csv download', '<div class="trow"><div><b>Export reports</b><small>Downloads the latest 200 shared reports as a CSV file.</small></div><button class="btn sm" data-export="1">Export CSV</button></div>', false));
+      b = '<div class="trow"><div><b>Flagged reports (' + fg.length + ')</b><small>Reports that visitors marked as fake or wrong.</small></div></div>';
+      if (!fg.length) { b += '<div class="empty" style="padding:14px">Nothing is flagged right now.</div>'; }
+      each(fg, function (g) { b += '<div class="trow"><div><b>' + esc(g.r.title) + '</b><small>' + g.list.length + ' flag' + (g.list.length > 1 ? 's' : '') + ': ' + esc(g.list[0].reason) + '</small></div><div><button class="btn sm" data-flagopen="' + g.r.id + '">Open</button> ' + (CLOUD.owner ? '<button class="btn sm" data-flagdismiss="' + g.r.cid + '">Dismiss</button> <button class="btn sm danger" data-del="' + g.r.id + '">Delete</button>' : '') + '</div></div>'; });
+      r.push(mkRow('Flagged reports', 'Reports that visitors marked as fake or wrong.', 'flags moderation fake', b, false));
+      P.push({ id: 'admin', label: 'Admin tools', ic: 'sliders', desc: 'Moderation tools for owner and agency accounts.', rows: r, reset: false });
+    }
+    /* Privacy and security */
+    r = [];
+    r.push(linkRow('Privacy Policy', 'What the app stores and who receives data.', 'privacy.html', 'privacy data'));
+    r.push(linkRow('Terms and Conditions', 'The rules for using DATAsaster.', 'terms.html', 'terms rules legal'));
+    r.push(mkRow('Password', 'Change the password of a signed-in staff account.', 'change password security', '<div class="trow"><div><b>Password</b><small>' + (cloudOn() && CLOUD.email ? 'Change the password of your signed-in account.' : 'Available after you sign in to a moderator, agency or media account.') + '</small></div>' + (cloudOn() && CLOUD.email ? '<button class="btn sm" data-svp="account">Change password</button>' : '') + '</div>', false));
+    r.push(mkRow('Data on this device', 'What this browser keeps.', 'storage local cache', '<div class="trow"><div><b>Data on this device</b><small>Your settings, ' + userItems.length + ' report' + (userItems.length === 1 ? '' : 's') + ' saved from this device, a cached copy of the app for offline use, and a random sign-in ID. Nothing is used for advertising.</small></div></div>', false));
+    if (!CLOUD.media) { r.push(mkRow('Delete my reports', 'Removes reports you posted from this device.', 'remove erase', '<div class="trow"><div><b>Delete my reports</b><small>Removes the reports you posted from this device, including shared ones.</small></div><button class="btn sm danger" data-clearmine="1">Delete (' + (userItems.length + myCloud().length) + ')</button></div>', false)); }
+    r.push(mkRow('Reset all settings', 'Puts every setting in every section back to its default.', 'default restore', '<div class="trow"><div><b>Reset all settings</b><small>Puts every setting in every section back to its default. Your reports are not touched.</small></div><button class="btn sm danger" data-reset="1">Reset all</button></div>', false));
+    P.push({ id: 'privacy', label: 'Privacy & security', ic: 'lock', desc: 'Legal pages, your password and the data kept on this device.', rows: r, reset: false });
+    /* About */
+    r = [];
+    r.push(mkRow('DATAsaster', 'Version and build', 'version name logo', '<div class="svabout"><img src="icon-192.png" width="56" height="56" alt="DATAsaster logo"><div><b>' + esc(APP_INFO.name) + '</b><small>Philippine disaster map, community reports and official advisories</small><small>Version ' + esc(APP_INFO.version) + ' \u00b7 build ' + esc(APP_INFO.build) + '</small></div></div>', false));
+    b = ''; each(APP_INFO.releases, function (rl) { b += '<div class="rel"><b>Version ' + esc(rl.v) + '</b> <span class="m">' + esc(rl.date) + '</span><ul>'; each(rl.notes, function (nt) { b += '<li>' + esc(nt) + '</li>'; }); b += '</ul></div>'; });
+    r.push(mkRow('Release notes', 'What changed in each version.', 'changelog updates new', b, true));
+    if (APP_INFO.changelogUrl) { r.push(linkRow('Changelog', 'The full list of changes.', APP_INFO.changelogUrl, 'history')); }
+    if (APP_INFO.docsUrl) { r.push(linkRow('Documentation', 'How the app works.', APP_INFO.docsUrl, 'docs guide')); }
+    if (APP_INFO.helpUrl) { r.push(linkRow('Help center', 'Answers to common questions.', APP_INFO.helpUrl, 'faq support')); }
+    if (APP_INFO.contactEmail) {
+      r.push(linkRow('Contact support', 'Email the DATAsaster team.', 'mailto:' + APP_INFO.contactEmail, 'help email'));
+      r.push(linkRow('Report a bug', 'Tell us what went wrong.', 'mailto:' + APP_INFO.contactEmail + '?subject=' + encodeURIComponent('DATAsaster bug report (version ' + APP_INFO.version + ')'), 'issue problem'));
+    }
+    r.push(linkRow('Privacy Policy', 'What the app stores and who receives data.', 'privacy.html', 'privacy'));
+    r.push(linkRow('Terms and Conditions', 'The rules for using DATAsaster.', 'terms.html', 'terms'));
+    r.push(linkRow('Partner with us', 'How agencies and media outlets can take part.', 'partner.html', 'agency media join'));
+    r.push(mkRow('Open-source licenses', 'Libraries and data this app builds on.', 'leaflet firebase osm license', '<ul class="svlic"><li><b>Leaflet</b> 1.9.4, BSD 2-Clause License</li><li><b>Firebase JavaScript SDK</b> 10.14.1, Apache License 2.0</li><li>Map data \u00a9 OpenStreetMap contributors; tiles by Esri and CARTO</li><li>Weather and hazard data: RainViewer, Open-Meteo, NASA EONET, USGS, EMSC</li></ul>', true));
+    P.push({ id: 'about', label: 'About', ic: 'info', desc: 'Version, release notes, help and legal information.', rows: r, reset: false });
+    return P;
+  }
+  function svBuild() {
+    var panels = svPanels(), cur = null, nav = '', main = '', q = svQuery.replace(/^\s+|\s+$/g, '').toLowerCase(), found = 0, hits;
+    each(panels, function (p) { if (p.id === svPanel) { cur = p; } });
+    if (!cur) { cur = panels[0]; svPanel = cur.id; }
+    each(panels, function (p) { var on = p.id === svPanel && !q; nav += '<button type="button" role="tab" class="svn' + (on ? ' on' : '') + '" data-svp="' + p.id + '" aria-selected="' + (on ? 'true' : 'false') + '">' + icon(p.ic, 16) + '<span>' + p.label + '</span></button>'; });
+    if (q) {
+      each(panels, function (p) {
+        hits = '';
+        each(p.rows, function (rw) { if ((rw.t + ' ' + rw.d + ' ' + rw.kw).toLowerCase().indexOf(q) > -1) { hits += rw.h; found++; } });
+        if (hits) { main += '<div class="svgrp"><h3>' + p.label + '</h3>' + hits + '</div>'; }
+      });
+      if (!found) { main = '<div class="empty">No settings match \u201c' + esc(svQuery) + '\u201d. Try a shorter word.</div>'; }
+      main = '<div class="svp-head"><div><h2>Search results</h2><p class="m">' + found + ' setting' + (found === 1 ? '' : 's') + ' found.</p></div></div>' + main;
+    } else {
+      main = '<div class="svp-head"><div><h2>' + cur.label + '</h2><p class="m">' + cur.desc + '</p></div>' + (cur.reset ? '<button class="btn sm" data-svreset="' + cur.id + '">Reset this section</button>' : '') + '</div>';
+      each(cur.rows, function (rw) { main += rw.h; });
+    }
+    return { nav: nav, main: main };
+  }
   function renderSettings() {
-    var s = settings, h = '', b;
-    h += '<div class="sv-head"><div><div class="m">Preferences</div><h1>Settings</h1><p class="m">Saved on this device and applied right away.</p></div><button class="btn" data-view="dash">' + icon('back', 15) + ' Back to dashboard</button></div>';
-    b = '<div class="opts">' + tile('data-theme-set', 'dark', 'moon', 'Dark', 'Low-light console', s.theme === 'dark') + tile('data-theme-set', 'light', 'sun', 'Light', 'Daylight contrast', s.theme === 'light') + '</div>';
-    h += sect('moon', 'Appearance', 'Choose the console theme.', b);
-    b = '<div class="opts">' + tile('data-base', 'dark', 'moon', 'Dark', 'Low-glare basemap', s.basemap === 'dark') + tile('data-base', 'street', 'pin', 'Street', 'Roads and labels', s.basemap === 'street') + tile('data-base', 'light', 'sun', 'Light', 'Pale basemap', s.basemap === 'light') + '</div>';
-    b += '<div class="trow" style="margin-top:8px"><div><b>Opening view</b></div><select data-sel="region">';
-    each(['ph', 'luzon', 'visayas', 'mindanao', 'ncr'], function (k) { b += '<option value="' + k + '"' + (s.region === k ? ' selected' : '') + '>' + REGION_NAMES[k] + '</option>'; });
-    b += '</select></div>';
-    h += sect('layers', 'Map', 'Basemap and where the map opens.', b);
-    b = '<div class="catchips">';
-    each(TORDER, function (t) { b += '<button class="cat' + (s.cats[t] ? ' on' : '') + '" data-tog="cat:' + t + '">' + icon(TYPES[t].ic, 15) + ' ' + TYPES[t].label + '</button>'; });
-    b += '</div><div class="hint">At least one category stays on.</div>';
-    h += sect('alert', 'Categories', 'Choose what appears in the feed and on the map.', b);
-    b = '<div class="srcgrid">';
-    each(SRC_KEYS, function (k) { b += '<div class="srci"><span>' + SRC[k].name + '</span><button class="sw' + (s.sources[k] !== false ? ' on' : '') + '" data-tog="src:' + k + '" aria-label="' + SRC[k].name + '"></button></div>'; });
-    b += '</div>';
-    h += sect('radar', 'Sources', 'Agencies and news outlets to include.', b);
-    b = trow('demo', 'Sample records', 'Labelled demonstration incidents.', s.demo);
-    b += trow('liveQuakes', 'Live earthquakes', 'USGS and EMSC, updated every minute while the app is open.', s.liveQuakes);
-    b += '<div class="trow"><div><b>Smallest earthquake</b></div><select data-sel="minmag">';
-    each([2.5, 3, 4, 4.5, 5], function (mg) { b += '<option value="' + mg + '"' + (s.minMag === mg ? ' selected' : '') + '>M' + mg.toFixed(1) + ' and above</option>'; });
-    b += '</select></div>';
-    b += trow('liveNews', 'Live headlines', 'Google News, from the selected outlets.', s.liveNews);
-    b += trow('showUnverified', 'Unverified reports', 'Community reports without review.', s.showUnverified);
-    b += trow('showPhotos', 'Photos', 'Thumbnails in the feed and details.', s.showPhotos);
-    b += '<div class="trow"><div><b>Auto refresh</b></div><select data-sel="refresh"><option value="0"' + (s.refresh == 0 ? ' selected' : '') + '>Off</option><option value="5"' + (s.refresh == 5 ? ' selected' : '') + '>Every 5 minutes</option><option value="15"' + (s.refresh == 15 ? ' selected' : '') + '>Every 15 minutes</option></select></div>';
-    b += '<div class="trow"><div><b>Install app</b><small>' + (deferredPrompt ? 'Add DATAsaster to your home screen.' : 'iPhone: Share, then Add to Home Screen. Android or desktop: use Install in the browser menu.') + '</small></div>' + (deferredPrompt ? '<button class="btn sm" data-install="1">Install</button>' : '') + '</div>';
-    h += sect('refresh', 'Data', 'What is loaded and how often.', b);
-    {
-      b = trow('alerts', 'Alerts', 'Notice and notification while the app is open: new High or Critical shared reports near you, and new earthquakes M4.5 or stronger. Needs location permission.', s.alerts);
-      b += '<div class="trow"><div><b>Alert distance</b></div><select data-sel="alertkm">';
-      each([10, 25, 50, 100], function (km) { b += '<option value="' + km + '"' + (s.alertKm === km ? ' selected' : '') + '>Within ' + km + ' km</option>'; });
-      b += '</select></div>';
-      h += sect('alert', 'Alerts', 'Heads-up for serious reports and earthquakes.', b);
-    }
-    if (cloudOn()) {
-      if (CLOUD.email) {
-        b = '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + (CLOUD.admin ? (CLOUD.owner ? 'Owner: you can verify, resolve and delete any shared report.' : agencyNote()) : 'Signed in, but this account is not an admin.') + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>';
-        if (CLOUD.admin) {
-          var fg = flagGroups();
-          if (CLOUD.owner) { b += auditHtml(); }
-          b += '<div class="trow"><div><b>Export reports</b><small>Downloads the latest 200 shared reports as a CSV file.</small></div><button class="btn sm" data-export="1">Export CSV</button></div>';
-          b += '<div class="trow"><div><b>Flagged reports (' + fg.length + ')</b><small>Flagged by visitors for review.</small></div></div>';
-          each(fg, function (g) { b += '<div class="trow"><div><b>' + esc(g.r.title) + '</b><small>' + g.list.length + ' flag' + (g.list.length > 1 ? 's' : '') + ': ' + esc(g.list[0].reason) + '</small></div><div><button class="btn sm" data-flagopen="' + g.r.id + '">Open</button> ' + (CLOUD.owner ? '<button class="btn sm" data-flagdismiss="' + g.r.cid + '">Dismiss</button> <button class="btn sm danger" data-del="' + g.r.id + '">Delete</button>' : '') + '</div></div>'; });
-        }
-      } else {
-        b = '<div class="trow"><input type="text" id="adEmail" placeholder="Admin email" autocomplete="username" style="flex:1"></div><div class="trow"><input type="password" id="adPw" placeholder="Password" autocomplete="current-password" style="flex:1"><button class="btn sm primary" data-adminlogin="1">Sign in</button></div>';
-      }
-      h += sect('alert', 'Admin', 'For moderators only. Everyone else is signed in automatically.', b);
-    }
-    h += '<div class="sv-foot"><button class="btn" data-clearmine="1">Delete my reports (' + (userItems.length + myCloud().length) + ')</button><button class="btn danger" data-reset="1">Reset to defaults</button></div>';
-    var keepY = window.pageYOffset || 0;
+    var o = svBuild(), h, keepY = window.pageYOffset || 0;
+    h = '<div class="sv2"><div class="sv2-top"><div><div class="m">Preferences</div><h1>Settings</h1></div><div class="sv2-tools"><div class="search"><span class="ics">' + icon('search', 15) + '</span><input type="search" id="svSearch" placeholder="Search settings" value="' + esc(svQuery) + '" aria-label="Search settings" autocomplete="off"></div><span class="svsave" id="svSave" aria-live="polite">Changes save on this device</span><button class="btn" data-view="dash">' + icon('back', 15) + ' Back</button></div></div>';
+    h += '<div class="sv2-body"><nav class="svnav" id="svNav" role="tablist" aria-label="Settings sections">' + o.nav + '</nav><div class="svmain" id="svMain">' + o.main + '</div></div></div>';
     $('viewSettings').innerHTML = h;
     window.scrollTo(0, keepY);
+  }
+  function svUpdate(animate) {
+    var o = svBuild(), m = $('svMain');
+    if (!m) { return; }
+    $('svNav').innerHTML = o.nav; m.innerHTML = o.main;
+    if (animate) { m.className = 'svmain'; void m.offsetWidth; m.className = 'svmain fadein'; }
+  }
+  function flashSaved(ok) {
+    var el = $('svSave');
+    if (!el) { return; }
+    el.className = 'svsave ' + (ok ? 'ok' : 'err');
+    el.textContent = ok ? '\u2713 Saved on this device' : 'Not saved: this browser blocks storage';
+    if (svSaveT) { clearTimeout(svSaveT); }
+    svSaveT = setTimeout(function () { var e2 = $('svSave'); if (e2) { e2.className = 'svsave'; e2.textContent = 'Changes save on this device'; } }, 2200);
+  }
+  function resetSection(id) {
+    var keys = RESETS[id], ok;
+    if (!keys) { return; }
+    ok = window.confirm('Reset the ' + id.replace('appearance', 'Appearance & map').replace('feed', 'Feed & data').replace('alerts', 'Alerts') + ' settings to their defaults? Other sections are not changed.');
+    if (!ok) { return; }
+    each(keys, function (k) { settings[k] = clone(DEFAULTS[k]); });
+    saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); refresh(); renderAdvList();
+    if (id === 'feed') { loadQuakes(); loadNews(); }
+    svUpdate(false);
   }
   /* Review queue: every shared report the signed-in admin or agency may act on (owner: all hazard types). */
   var reviewF = 'need', reviewT = 'all';
@@ -1608,7 +1735,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh', 'data-infotab', 'data-svp', 'data-svreset', 'data-chgpw', 'data-goto', 'data-openreport', 'data-account', 'data-ftf'];
   function findAction(el) {
     var i;
     while (el && el !== document) {
@@ -1660,6 +1787,14 @@
     if (n === 'data-export') { if (CLOUD.admin) { exportCsv(); } return; }
     if (n === 'data-flagopen') { showView('dash'); select(v, true); openDetail(v); return; }
     if (n === 'data-flagdismiss') { if (!CLOUD.owner) { return; } CLOUD.dismissFlags(v, cloudFail); toast('Flags dismissed'); return; }
+    if (n === 'data-infotab') {
+      var tabAdv = $('tabAdv'), tabNews = $('tabNews'), secEl = $(v === 'news' ? 'newsSec' : 'advSec');
+      document.body.setAttribute('data-info', v);
+      tabAdv.className = v === 'adv' ? 'on' : ''; tabNews.className = v === 'news' ? 'on' : '';
+      tabAdv.setAttribute('aria-selected', v === 'adv' ? 'true' : 'false'); tabNews.setAttribute('aria-selected', v === 'news' ? 'true' : 'false');
+      secEl.className = secEl.className.replace(/\s*fadein/g, ''); void secEl.offsetWidth; secEl.className += ' fadein';
+      return;
+    }
     if (n === 'data-rvf') { reviewF = v; renderReview(); return; }
     if (n === 'data-rvt') { reviewT = v; renderReview(); return; }
     if (n === 'data-rvrefresh') { renderReview(); return; }
@@ -1732,14 +1867,36 @@
       if (parts[0] === 'cat') { if (settings.cats[parts[1]] && !(function () { var c = 0; each(TORDER, function (t) { if (settings.cats[t]) { c++; } }); return c > 1; })()) { return; } settings.cats[parts[1]] = !settings.cats[parts[1]]; if (tf === parts[1] && !settings.cats[parts[1]]) { tf = 'all'; } }
       else if (parts[0] === 'src') { settings.sources[parts[1]] = !(settings.sources[parts[1]] !== false); }
       else { settings[v] = !settings[v]; }
-      saveSettings(); renderSettings(); refresh();
+      saveSettings(); if (viewing === 'settings') { renderSettings(); } refresh();
+      if (v === 'showOldAdv') { renderAdvList(); }
       if (v === 'alerts' && settings.alerts) { enableAlerts(); }
       if (v === 'liveQuakes') { loadQuakes(); }
       if (v === 'liveNews' || (parts[0] === 'src' && NEWS_KEYS.indexOf(parts[1]) >= 0)) { loadNews(); }
       return;
     }
-    if (n === 'data-clearmine') { if (window.confirm('Delete all your reports?')) { each(myCloud(), function (x) { CLOUD.remove(x.cid, cloudFail); }); userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
-    if (n === 'data-reset') { if (window.confirm('Reset all settings to defaults?')) { settings = clone(DEFAULTS); saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); applyLayers(); renderSettings(); refresh(); loadQuakes(); loadNews(); } return; }
+    if (n === 'data-clearmine') { if (CLOUD.media) { return; } if (window.confirm('Delete all your reports? This cannot be undone.')) { each(myCloud(), function (x) { CLOUD.remove(x.cid, cloudFail); }); userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
+    if (n === 'data-reset') { if (window.confirm('Reset all settings to defaults?')) { settings = clone(DEFAULTS); saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); applyLayers(); renderSettings(); refresh(); renderAdvList(); loadQuakes(); loadNews(); } return; }
+    if (n === 'data-svp') { svPanel = v; svQuery = ''; renderSettings(); return; }
+    if (n === 'data-svreset') { resetSection(v); return; }
+    if (n === 'data-chgpw') {
+      var cp0 = $('cpOld').value, cp1 = $('cpNew').value, cp2 = $('cpNew2').value, cpm = $('cpMsg'), cpb = $('cpBtn');
+      var say = function (t, kind) { cpm.className = 'cpmsg ' + (kind || ''); cpm.textContent = t; };
+      if (!cp0 || !cp1 || !cp2) { say('Fill in all three boxes.', 'err'); return; }
+      if (cp1.length < 8) { say('The new password must be at least 8 characters.', 'err'); return; }
+      if (cp1 !== cp2) { say('The new passwords do not match.', 'err'); return; }
+      if (cp1 === cp0) { say('The new password must be different from the current one.', 'err'); return; }
+      cpb.disabled = true; say('Updating password...', '');
+      CLOUD.changePassword(cp0, cp1, function () { cpb.disabled = false; $('cpOld').value = ''; $('cpNew').value = ''; $('cpNew2').value = ''; say('Password changed. Use the new password the next time you sign in.', 'ok'); }, function (er) {
+        var cd = er && er.code ? er.code : 'unknown';
+        cpb.disabled = false;
+        say(cd === 'auth/wrong-password' || cd === 'auth/invalid-credential' ? 'Your current password is not correct.' : cd === 'auth/weak-password' ? 'That password is too weak. Use at least 8 characters.' : cd === 'auth/too-many-requests' ? 'Too many attempts. Wait a few minutes and try again.' : cd === 'auth/network-request-failed' ? 'No connection. Check your internet and try again.' : cd === 'auth/requires-recent-login' ? 'Please sign out, sign in again and retry.' : 'Could not change the password (' + cd + ').', 'err');
+      });
+      return;
+    }
+    if (n === 'data-goto') { var gt = $(v); if (gt && gt.scrollIntoView) { gt.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
+    if (n === 'data-openreport') { openReport(false); return; }
+    if (n === 'data-account') { svPanel = 'account'; svQuery = ''; showView('settings'); window.scrollTo(0, 0); return; }
+    if (n === 'data-ftf') { tf = v; selId = null; refresh(); window.scrollTo(0, 0); return; }
   }
   document.addEventListener('click', function (e) {
     var y = window.pageYOffset || 0, rb = $('rows'), ry = rb ? rb.scrollTop : 0, pane0 = document.body.getAttribute('data-pane'), view0 = viewing;
@@ -1808,6 +1965,8 @@
     $('day').addEventListener('change', function () { dayVal = this.value; refresh(); });
     $('btnSet').addEventListener('click', function () { showView(viewing === 'settings' ? 'dash' : 'settings'); });
     $('btnRep').addEventListener('click', function () { openReport(false); });
+    document.addEventListener('input', function (e) { if (e.target && e.target.id === 'svSearch') { svQuery = e.target.value; svUpdate(false); } });
+    $('fToggle').addEventListener('click', function () { var fh = $('fToggle').parentNode.parentNode, op = fh.className.indexOf(' open') < 0; fh.className = op ? fh.className + ' open' : fh.className.replace(' open', ''); $('fToggle').setAttribute('aria-expanded', op ? 'true' : 'false'); });
     $('btnLayers').addEventListener('click', function () { panelOpen = !panelOpen; $('lpanel').hidden = !panelOpen; if (panelOpen) { renderPanel(); } });
     $('newsSrc').addEventListener('change', function () { var y = window.pageYOffset || 0; newsF = this.value; renderNews(true); window.scrollTo(0, y); });
     $('newsRef').addEventListener('click', loadNews);

@@ -14,8 +14,12 @@ service cloud.firestore {
     function isAgency() {
       return isAdmin() && adminDoc().get('role', '') == 'agency';
     }
+    // Media accounts (role "media", field outlet = outlet name) may post reports under their outlet name. They are NOT moderators.
+    function isMedia() {
+      return isAdmin() && adminDoc().get('role', '') == 'media';
+    }
     function isOwner() {
-      return isAdmin() && adminDoc().get('role', '') != 'agency';
+      return isAdmin() && !(adminDoc().get('role', '') in ['agency', 'media']);
     }
     // Same check for an assessment: the audit entry must be written in the same batch and point at the same report.
     function auditOkFor(rid, aid) {
@@ -94,13 +98,16 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null
         && id.matches('[A-Za-z0-9_-]{1,40}')
-        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified'])
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified','author','media'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.type in ['flood','fire','quake','volcano','typhoon','landslide']
         && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
         && request.resource.data.title is string && request.resource.data.title.size() <= 200
         && request.resource.data.desc is string && request.resource.data.desc.size() <= 2000
         && request.resource.data.place is string && request.resource.data.place.size() <= 200
+        && request.resource.data.get('author', '') is string && request.resource.data.get('author', '').size() <= 40
+        && request.resource.data.get('media', '') is string && request.resource.data.get('media', '').size() <= 60
+        && (request.resource.data.get('media', '') == '' || (isMedia() && request.resource.data.media == adminDoc().get('outlet', '')))
         && request.resource.data.lat is number && request.resource.data.lng is number
         && request.resource.data.time is number
         && request.resource.data.time <= request.time.toMillis() + 3600000
@@ -113,7 +120,7 @@ service cloud.firestore {
         && canPost();
       // Authors can resolve or reopen their own report. Admins can also mark it verified.
       allow update: if request.auth != null && (
-        (resource.data.uid == request.auth.uid
+        (resource.data.uid == request.auth.uid && !isMedia()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt']))
         || (isOwner()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','auditId']))
@@ -124,12 +131,12 @@ service cloud.firestore {
           && auditOk(id))
       );
       // Authors and the owner can delete. Agencies cannot delete community reports.
-      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isOwner());
+      allow delete: if request.auth != null && ((resource.data.uid == request.auth.uid && !isMedia()) || isOwner());
     }
 
     // Visitors can flag a report once; only admins can read or clear flags.
     match /flags/{flagId} {
-      allow read: if isAdmin();
+      allow read: if isOwner() || isAgency();
       allow create: if request.auth != null
         && request.resource.data.keys().hasOnly(['reportId','uid','reason','time'])
         && request.resource.data.uid == request.auth.uid
@@ -211,7 +218,7 @@ service cloud.firestore {
     // Audit log: admins and agencies can only add entries. Only the owner can read. Nobody can edit or delete.
     match /audit/{aid} {
       allow read: if isOwner();
-      allow create: if request.auth != null && isAdmin()
+      allow create: if request.auth != null && (isOwner() || isAgency())
         && request.resource.data.keys().hasAll(['uid','agency','action','targetType','targetId','time'])
         && request.resource.data.keys().hasOnly(['uid','agency','action','targetType','targetId','note','time'])
         && request.resource.data.uid == request.auth.uid

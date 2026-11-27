@@ -1,7 +1,7 @@
 /* Shared reports through Firebase (Firestore + sign-in + optional App Check).
    If the config is empty or Firebase failed to load, CLOUD.on stays false and the app works locally. */
 (function () {
-  var C = window.CLOUD = { on: false, uid: '', admin: false, owner: false, role: '', agency: '', types: [], email: '' };
+  var C = window.CLOUD = { on: false, uid: '', admin: false, owner: false, media: false, outlet: '', role: '', agency: '', types: [], email: '' };
   var cfg = window.FIREBASE_CONFIG, db, auth, flagStop = null;
   if (!cfg || !cfg.apiKey || !window.firebase) { return; }
   try {
@@ -40,8 +40,9 @@
      Any other document (including the old role "admin", or no role) = owner, same powers as before. */
   C.setRole = function (data) {
     var i, t;
-    C.admin = !!data; C.owner = false; C.role = ''; C.agency = ''; C.types = [];
+    C.admin = !!data; C.owner = false; C.media = false; C.outlet = ''; C.role = ''; C.agency = ''; C.types = [];
     if (!data) { return; }
+    if (data.role === 'media') { C.admin = false; C.media = true; C.role = 'media'; C.outlet = String(data.outlet || '').substring(0, 60); return; }
     if (data.role === 'agency') {
       C.role = 'agency'; C.agency = String(data.agency || '');
       t = data.types && data.types.length ? data.types : [];
@@ -51,6 +52,13 @@
   /* Can this signed-in admin act on a report of this hazard type? Owners: all. Agencies: only their listed types. */
   C.can = function (type) { return !!(C.admin && (C.owner || C.types.indexOf(type) > -1)); };
 
+  /* Change password for the signed-in email account: re-checks the current password first. */
+  C.changePassword = function (cur, nw, ok, fail) {
+    var u = auth.currentUser, cred;
+    if (!u || u.isAnonymous || !u.email) { fail({ code: 'no-account' }); return; }
+    cred = firebase.auth.EmailAuthProvider.credential(u.email, cur);
+    u.reauthenticateWithCredential(cred).then(function () { return u.updatePassword(nw); }).then(function () { ok(); }, function (er) { fail(er); });
+  };
   C.login = function (email, pw, ok, fail) {
     auth.signInWithEmailAndPassword(email, pw).then(function () { ok(); }, function (er) { fail(er); });
   };
@@ -61,7 +69,7 @@
     var ref = db.collection('reports').doc(), batch = db.batch(), obs = [], i;
     for (i = 0; i < it.obs.length; i++) { obs.push({ k: String(it.obs[i][0]), v: String(it.obs[i][1]) }); }
     batch.set(ref, {
-      uid: C.uid, type: it.type, sev: it.sev, title: it.title, desc: it.desc, place: it.place,
+      uid: C.uid, type: it.type, sev: it.sev, title: it.title, desc: it.desc, place: it.place, author: String(it.author || '').substring(0, 40), media: C.media ? C.outlet : '',
       lat: it.lat, lng: it.lng, img: '', imgs: (it.imgs || []).slice(0, 3), obs: obs, time: it.time, resolved: false, resAt: 0, verified: false
     });
     batch.set(db.collection('users').doc(C.uid), { lastPost: firebase.firestore.FieldValue.serverTimestamp() });

@@ -26,7 +26,7 @@ datasaster/
 ├── lib/                    leaflet.js/.css, firebase-app|auth|firestore|app-check-compat.js (do not edit)
 ├── firestore.rules         paste into Firebase console (not deployed by git)
 ├── manifest.webmanifest, sw.js, icon-192.png, icon-512.png, favicon.ico, favicon-32.png, apple-touch-icon.png, og-image.png
-├── privacy.html, terms.html, 404.html, robots.txt, sitemap.xml, vercel.json
+├── privacy.html, terms.html, partner.html, 404.html, robots.txt, sitemap.xml, vercel.json
 ├── README.md               public setup guide (existing)
 ├── DEV_README.md  CHANGELOG.md  DEVELOPMENT_STATUS.md
 ```
@@ -77,10 +77,10 @@ Auth: Anonymous (every visitor; used for ownership) and Email/Password (admins o
 
 | Collection | Doc id | Fields | Access (firestore.rules) |
 |---|---|---|---|
-| `reports` | auto id | uid, type, sev (int 0 to 3), title, desc, place, lat, lng, img (always `''`), imgs (max 3 strings, each < 230,000 chars), obs (list of `{k,v}`, max 12), time (ms), resolved, resAt, verified | read: anyone. create: signed in, validated, `resolved=false`, `verified=false`, passes `canPost()`. update: author may change `resolved`,`resAt`; admin may also change `verified`. delete: author or admin. |
+| `reports` | auto id | uid, type, sev (int 0 to 3), title, desc, place, lat, lng, img (always `''`), imgs (max 3 strings, each < 230,000 chars), obs (list of `{k,v}`, max 12), time (ms), resolved, resAt, verified, author (optional text, up to 40, typed by the poster, unverified) | read: anyone. create: signed in, validated, `resolved=false`, `verified=false`, passes `canPost()`. update: author may change `resolved`,`resAt`; admin may also change `verified`. delete: author or admin. |
 | `users` | uid | lastPost (server timestamp) | create/update own doc only, must equal `request.time`. No read. Used for the 2-minute posting limit. |
 | `flags` | `<reportId>_<uid>` | reportId, uid, reason (<=200), time | create: signed in, report must exist. read/delete: admin only. |
-| `admins` | admin's UID | `role`, and for agencies `agency` (text) and `types` (list of hazard types) | read own doc only. No client writes. Create in console. See "Roles" below. |
+| `admins` | admin's UID | `role` (`owner`, `agency` or `media`), for agencies `agency` (text) and `types` (list of hazard types), for media `outlet` (text) | read own doc only. No client writes. Create in console. See "Roles" below. |
 | `assessments` | `<reportId>_<AGENCY>` (one per agency per report) | reportId, agency, uid (last editor), status (`under_review`, `corroborated`, `not_corroborated`, `duplicate`, `unable`), note (<=500), time (server), auditId | read: anyone. create/update: agency accounts only, only for a report whose type is in their `types`, agency must equal their `agency` field, must carry an `auditId` for an `ASSESS` audit entry in the same batch. delete: nobody. Only the latest assessment per agency is kept; earlier states are in the audit log. |
 | `advisories` | auto id | agency, uid, title, hazard, areas, desc, sourceUrl (https), refNo, issuedAt, expiresAt, status (`published`, `withdrawn`), rev, time, auditId, verId | read: anyone. create/update: agency accounts only, own agency name, hazard in their `types`, each write needs a matching `advisoryVersions` doc and an audit entry in the same batch, `rev` goes up by 1. The owner can only set `withdrawn`. delete: nobody. |
 | `advisoryVersions` | auto id | advisoryId, rev, agency, uid, title, hazard, areas, desc, sourceUrl, refNo, expiresAt, status, time | read: anyone. create only (agency accounts). One per revision, never changed. |

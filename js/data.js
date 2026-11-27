@@ -73,3 +73,27 @@ var CONTACTS = [
   ['MMDA', [['136', '136']], 'Metro Manila traffic and flooding advisories.'],
   ['Philippine Coast Guard', [['(02) 8527-8481', '0285278481']], 'Sea rescue and maritime emergencies.']
 ];
+
+/* About page information. Rows for URLs or an email appear in Settings > About only when you fill them in. */
+var APP_INFO = {
+  name: 'DATAsaster',
+  version: '1.0.0',
+  build: '27',
+  contactEmail: '',
+  changelogUrl: '',
+  docsUrl: '',
+  helpUrl: '',
+  releases: [
+    { v: '1.0.0', date: 'November 2026', notes: [
+      'Official advisories and agency assessments from verified agency accounts.',
+      'Media accounts can post reports under their outlet name. They cannot resolve or delete.',
+      'Optional author name on reports.',
+      'New Settings page with search, a reset button for each section, and password change.',
+      'Footer with emergency hotlines and links for agencies and media to join.',
+      'Phone layout fixes, Privacy Policy and Terms pages.'
+    ] },
+    { v: '0.9.0', date: 'Earlier in 2026', notes: [
+      'Shared reports with up to 3 photos, admin tools, live earthquakes and weather layers.'
+    ] }
+  ]
+};
