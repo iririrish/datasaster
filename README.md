@@ -88,7 +88,7 @@ Earthquakes come from USGS and EMSC (which collects Philippine data), refreshed 
 
 ## LGU Partnership module (in progress)
 
-Built in phases on the branch `feature/lgu-disaster-module`. The phase plan, the rules to publish and the test list for each phase are in **`LGU_MODULE.md`**. Phase 1 is the public partner page and the application form. Phase 2 is the organization console (`console.html`) and public announcements.
+Built in phases on the branch `feature/lgu-disaster-module`. The phase plan, the rules to publish and the test list for each phase are in **`LGU_MODULE.md`**. Phase 1 is the public partner page and the application form. Phase 2 is the organization console (`console.html`) and public announcements. Phase 3 is the super admin page (`admin.html`).
 
 Before the form goes public:
 1. The contact email is set to `aitetha8@gmail.com` (in `partner.html`, `privacy.html`, `terms.html`, `js/data.js`, `js/lgu-apply.js` and `js/lgu-console.js`). Still to fill in: `[your contact number]` and the office hours in `partner.html`.
@@ -101,6 +101,7 @@ These were designed but are not built. Each can be added later without changing 
 - **Automatic emails.** An acknowledgment email to the applicant and a notice to the owner on every application, and a status-change email. The browser cannot send mail, so this needs a small server function (for example a free Vercel serverless function with Brevo or Resend) and one secret API key.
 - **Larger uploads.** The letter of intent is limited to 600 KB and stored in Firestore. 10 MB files need Firebase Storage, which needs the paid Blaze plan, or another file host.
 - **Province, city and barangay drop-down lists** on the application form (the form uses typed text now). Needs a Philippine places list.
-- **Email-link invites.** The owner approves an application and the representative claims access by signing in with the invited email. Until then, the owner creates the Auth user and the `orgMembers/<uid>` document by hand in the Firebase console.
+- **Branded invitation emails.** Admins are invited by Firebase's standard password-reset email (plain wording, may land in spam). A branded invitation or status-change email needs the same server function as the automatic emails.
+- **Platform settings page** (global switches, defaults), a team-roles screen for several owners, and an audit-log entry for organization-admin actions.
 - **Automatic deletion** of old applications and documents, to match the retention in `privacy.html` (needs a scheduled server function). It is done by hand until then.
 - **Reports for trends,** automatic PDF reports and historical analysis, SMS or push distribution of announcements, and detailed supplies or evacuee tracking.

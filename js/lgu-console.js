@@ -68,7 +68,7 @@
     return '<form class="cpanel signin cform" id="siForm" novalidate><div class="body"><h2 style="font-size:20px;margin-bottom:4px">Organization sign in</h2><p class="m" style="margin:0 0 14px">For approved LGUs, barangays, HOAs and response teams. Everyone else uses the public map without signing in.</p>'
       + '<div class="field"><label class="l" for="siEm">Email</label><input type="email" id="siEm" autocomplete="username"></div>'
       + '<div class="field"><label class="l" for="siPw">Password</label><input type="password" id="siPw" autocomplete="current-password"></div>'
-      + '<div class="err" id="siErr" role="alert"></div><button class="btn primary" type="submit">Sign in</button> <a class="btn" href="apply.html">Apply for partnership</a></div></form>';
+      + '<div class="err" id="siErr" role="alert"></div><button class="btn primary" type="submit">Sign in</button> <button class="btn" type="button" data-act="forgot">Forgot password?</button> <a class="btn" href="apply.html">Apply for partnership</a></div></form>';
   }
 
   /* ---------- overview ---------- */
@@ -257,6 +257,7 @@
     if ((n = t.getAttribute('data-annt'))) { annTab = n; confirmId = ''; view(); return; }
     if ((n = t.getAttribute('data-ssec'))) { sSec = n; view(); return; }
     a = t.getAttribute('data-act'); id = t.getAttribute('data-id');
+    if (a === 'forgot') { var fe = $('siEm').value.replace(/^\s+|\s+$/g, ''); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fe)) { $('siErr').textContent = 'Type your email above first, then choose Forgot password.'; return; } auth.sendPasswordResetEmail(fe).then(function () { $('siErr').textContent = ''; toast('If that email has an account, a reset link is on its way.'); }, function () { toast('Could not send the email. Try again later.'); }); return; }
     if (a === 'out') { stopW(); auth.signOut(); return; }
     if (a === 'refresh') { toast('Up to date'); view(); return; }
     if (a === 'verify' || a === 'resolve') { incAct(a, id); return; }

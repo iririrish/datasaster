@@ -10,7 +10,7 @@ Scope decisions: no evacuation centers and no automatic emails in this version (
 |---|---|---|
 | 1 | Public partner page, application form (saves to Firestore), legal pages, application rules, `isOwner()` allow-list | **Built** |
 | 2 | Organization console (`console.html`): overview stats, incident review for the org's hazard types and area, announcements, reports and CSV, organization profile. Public display of active announcements on the home page. Rules for `orgMembers`, `organizations`, `announcements` | **Built** |
-| 3 | Super admin page: applications list, status, private notes, view the uploaded letter, approve (creates the organization), organizations and roles | Not started |
+| 3 | Super admin page (`admin.html`): applications list, status, private notes, view the uploaded letter, approve (creates the organization), organizations and roles, announcement moderation | **Built** |
 
 Roles: Super administrator = the existing owner (`admins/<uid>` with no role, `owner` or `admin`). Organization administrator = `orgMembers/<uid>` (Phase 2, created by hand in the Firebase console). Resident = everyone else. Agency and media accounts are unchanged.
 
@@ -94,3 +94,44 @@ Publish the whole `firestore.rules` again. Changes in Phase 2:
 - Overview and Reports numbers are based on the latest 200 shared reports (the same limit as the map). Older incidents drop out.
 - Organizations and organization admins are created by hand until Phase 3.
 - The public announcement box and bar are for Phase 2. Evacuation centers are not built (see README).
+
+---
+## Phase 3: super admin page (`admin.html`)
+
+Owner only. The owner is your existing `admins/<uid>` account with no role (or role `owner` / `admin`). The page is not linked from the public site: open `admin.html` directly. It has `noindex`.
+
+### Files
+**New:** `admin.html`, `js/lgu-admin.js`, `security-test-lgu3.js`
+**Modified (on top of Phase 2):** `firestore.rules`, `js/lgu-console.js` (Forgot password link on sign-in), `sw.js` (cache v30), `README.md`, `LGU_MODULE.md`
+
+### What it does
+- **Applications:** list with status counts, filter and search. Detail: every field, the uploaded letter (opens in a new tab), private notes, status buttons (Pending, Under Review, Approved, Rejected), Email applicant (opens your mail app), retention dates, and delete (letter only, or the application with its notes and letter).
+- **Approve and create organization:** opens a form filled from the application. You choose hazard types and the coverage box (south, north, west, east, Philippines only). Saving creates the organization and marks the application approved in one step.
+- **Organizations & roles:** list, edit, suspend or activate. **Add admin by email** creates the account and sends Firebase's password-reset email so the person can set a password, then links them. If the email already has an account, paste its UID instead. Remove an admin at any time.
+- **Announcements:** every organization's announcements, with Delete.
+- Org console sign-in now has **Forgot password?**
+
+### Rules to publish
+Publish the whole `firestore.rules` again. Phase 3 changes:
+- `applications`: the owner can change only `status`, `updatedAt`, `decidedAt` and `orgId` (status must be one of the four), and can delete. Visitors still cannot read or edit anything.
+- `applications/<id>/notes`: owner only. `applicationDocs`: owner can also delete.
+- `organizations`: the owner can create and edit (validated; the box must be inside the Philippines; types from the six hazard types). Nobody can delete an organization from the app: suspend it.
+- `orgMembers`: the owner can create, edit and remove (role must be `orgadmin`, the organization must exist).
+
+### Test list
+**A. Earlier tests again:** `security-test.js` (agency and visitor, 17 each), `security-test-lgu.js` (14), `security-test-lgu2.js` (visitor 8, org admin 14).
+**B. New `security-test-lgu3.js`:** visitor 7 PASS, organization admin 7 PASS, owner 14 PASS (12 if you have no applications yet). It leaves one suspended `zz-test-org` to delete in the Firebase console.
+**C. By hand**
+1. `admin.html`: an agency or media account, or an organization admin, is told an owner account is required. The owner sees three tabs.
+2. Send a test application from `apply.html`. It shows in the list within seconds with the Pending badge.
+3. Open it: fields, letter opens, add a note, Under Review, then Approve and create organization with a coverage box. The organization appears and the application shows Approved and links to it.
+4. Add admin by email (use an address you own). You get the Firebase email, set a password, then sign in at `console.html` and see only that organization.
+5. Suspend the organization: the console shows "Organization not active" and the admin cannot save anything. Activate it again.
+6. Publish an announcement as that admin, then delete it from the Announcements tab as owner.
+7. Delete the test application (also removes its notes and letter).
+8. Existing site, the application form and the org console still work.
+
+### Notes and limits
+- Invitation and password emails come from Firebase's default template. Edit the wording in Firebase console > Authentication > Templates. They can land in spam.
+- Retention (Privacy Policy section 9) is done by you with the Delete buttons. The page shows the due dates but does not delete anything by itself.
+- Approving does not email the applicant. Use Email applicant.
