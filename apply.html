@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1318">
+<title>Apply for partnership | DATAsaster</title>
+<meta name="description" content="Apply for the DATAsaster LGU Partnership Program: cities, municipalities, barangays, HOAs and disaster response organizations.">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/lgu.css">
+</head>
+<body class="lgupage lgu">
+<noscript><p style="padding:16px;margin:0;background:#fbbf24;color:#14181f">This form needs JavaScript. Please turn it on in your browser.</p></noscript>
+<header class="lgutop">
+  <a class="brand" href="./"><img src="icon-192.png" alt="" width="36" height="36"><div><b>DATAsaster</b><small>Bridging communities with simplified satellite intelligence and crowdsourced mapping</small></div></a>
+  <div class="sp"></div>
+  <a class="btn" href="partner.html">&larr; Back to partnership</a>
+</header>
+
+<main class="apply">
+  <div class="head">
+    <p class="m">LGU Partnership Program</p>
+    <h1>Apply for partnership</h1>
+    <p>All fields are required unless marked optional. Your progress is saved on this device (the file is not).</p>
+  </div>
+
+  <div>
+    <div id="done" class="done" hidden>
+      <h2>Application received</h2>
+      <p>Your reference number is:</p>
+      <div class="ref" id="doneRef"></div>
+      <p>Please keep it. We review applications personally and will contact you at <b id="doneMail"></b> about the next steps. We do not send an automatic confirmation email yet.</p>
+      <p><a class="btn" href="./">Back to the dashboard</a></p>
+    </div>
+
+    <form id="frm" novalidate autocomplete="on">
+      <div class="formerr" id="formErr" role="alert" hidden></div>
+
+      <section class="fcard">
+        <h2><i>1</i>Organization</h2>
+        <div class="fgrid">
+          <div class="field full" data-f="orgName"><label class="l" for="orgName">Organization name</label><input type="text" id="orgName" maxlength="120" autocomplete="organization"><div class="err"></div></div>
+          <div class="field full" data-f="orgType"><span class="l" id="otl">Organization type</span>
+            <div class="radios" role="radiogroup" aria-labelledby="otl">
+              <label><input type="radio" name="orgType" value="City"> City</label>
+              <label><input type="radio" name="orgType" value="Municipality"> Municipality</label>
+              <label><input type="radio" name="orgType" value="Barangay"> Barangay</label>
+              <label><input type="radio" name="orgType" value="HOA"> HOA</label>
+              <label><input type="radio" name="orgType" value="Other"> Other</label>
+            </div><div class="err"></div></div>
+          <div class="field" data-f="province"><label class="l" for="province">Province</label><input type="text" id="province" maxlength="60"><div class="err"></div></div>
+          <div class="field" data-f="city"><label class="l" for="city">City / Municipality</label><input type="text" id="city" maxlength="80"><div class="err"></div></div>
+          <div class="field" data-f="barangay"><label class="l" for="barangay">Barangay <span class="lopt">Optional for cities and municipalities</span></label><input type="text" id="barangay" maxlength="80"><div class="err"></div></div>
+          <div class="field" data-f="address"><label class="l" for="address">Office address</label><input type="text" id="address" maxlength="200" autocomplete="street-address"><div class="err"></div></div>
+        </div>
+      </section>
+
+      <section class="fcard">
+        <h2><i>2</i>Representative</h2>
+        <div class="fgrid">
+          <div class="field" data-f="repName"><label class="l" for="repName">Full name</label><input type="text" id="repName" maxlength="100" autocomplete="name"><div class="err"></div></div>
+          <div class="field" data-f="position"><label class="l" for="position">Position</label><input type="text" id="position" maxlength="100" autocomplete="organization-title"><div class="err"></div></div>
+          <div class="field" data-f="email"><label class="l" for="email">Email address</label><input type="email" id="email" maxlength="120" autocomplete="email" inputmode="email"><div class="err"></div></div>
+          <div class="field" data-f="phone"><label class="l" for="phone">Contact number</label><input type="tel" id="phone" maxlength="20" autocomplete="tel"><div class="hint">Mobile or landline, e.g. 0917 123 4567</div><div class="err"></div></div>
+        </div>
+      </section>
+
+      <section class="fcard">
+        <h2><i>3</i>Partnership details</h2>
+        <div class="fgrid">
+          <div class="field full" data-f="purpose"><label class="l" for="purpose">Purpose of application</label>
+            <select id="purpose"><option value="">Choose one</option><option>Publish emergency announcements</option><option>Review community incident reports</option><option>Both of the above</option><option>Other</option></select><div class="err"></div></div>
+          <div class="field full" data-f="message"><label class="l" for="message">Additional message <span class="lopt">Optional</span></label><textarea id="message" maxlength="1500"></textarea><div class="err"></div></div>
+          <div class="field full" data-f="doc"><span class="l">Letter of intent or supporting document <span class="lopt">Optional</span></span>
+            <div class="drop" id="drop"><input type="file" id="docFile" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"><label for="docFile">Choose a file</label> or drop it here. PDF, JPG or PNG, up to 600 KB.</div>
+            <div class="filerow" id="fileRow" hidden><span id="fileName"></span><button type="button" class="btn sm" id="fileRm">Remove file</button></div>
+            <div class="hint">If your file is larger, send it by email after applying and mention your reference number.</div><div class="err"></div></div>
+        </div>
+      </section>
+
+      <div class="field" data-f="agreed"><label class="consent"><input type="checkbox" id="agreed"><span>I confirm I'm authorized to apply for this organization and agree to the <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span></label><div class="err"></div></div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><button type="submit" class="btn primary" id="send" disabled>Send application</button><span class="m" id="sendNote">Connecting...</span></div>
+    </form>
+  </div>
+
+  <aside class="side">
+    <div class="lcard"><h3>What happens next</h3>
+      <ol>
+        <li><i>1</i><div><b>Reference number</b><span>Shown on this page right after you send.</span></div></li>
+        <li><i>2</i><div><b>Review</b><span>We review your application personally.</span></div></li>
+        <li><i>3</i><div><b>Quotation by email</b><span>Terms and agreement are handled directly.</span></div></li>
+        <li><i>4</i><div><b>Console access</b><span>Once approved, your representative gets access.</span></div></li>
+      </ol></div>
+    <div class="lcard"><h3>Your documents are private</h3><p>An uploaded letter is not shown to the public. Only the DATAsaster review team can open it.</p></div>
+    <div class="lcard"><h3>How long we keep it</h3><p>See the <a href="privacy.html#applications">Privacy Policy</a>. It lists what we store and when it is deleted.</p></div>
+  </aside>
+</main>
+
+<p class="lgufoot">DATAsaster is not an official government site. <a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms and Conditions</a></p>
+
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/firebase-firestore-compat.js"></script>
+<script src="lib/firebase-app-check-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/lgu-apply.js"></script>
+</body>
+</html>

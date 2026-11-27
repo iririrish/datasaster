@@ -1,0 +1,117 @@
+/* LGU Partnership module (public pages). Uses the colours and controls from style.css; nothing here changes existing pages
+   except the small "Partner with us" header link and the partner banner on the home page. */
+
+/* header link on the home page */
+#btnPartner{text-decoration:none;color:var(--text)}
+@media(max-width:900px){#btnPartner{display:none}}
+
+/* standalone LGU pages (partner.html, apply.html) */
+.lgupage{display:block;height:auto;overflow:auto}
+.lgutop{display:flex;align-items:center;gap:12px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lgutop .brand{text-decoration:none}
+.lgutop .btn{text-decoration:none;color:var(--text)}
+.lgutop .btn.primary{color:#fff}
+.lgutop img{width:36px;height:36px;border-radius:8px;display:block}
+.lguwrap{max-width:1040px;margin:0 auto;padding:0 16px}
+.lgusec{padding:40px 0;border-bottom:1px solid var(--line)}
+.lgusec:last-of-type{border-bottom:0}
+.lgusec h2{font-size:22px;margin-bottom:6px}
+.lgusec>.lguwrap>p.m,.lgusec .lead{max-width:62ch}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+
+/* hero */
+.lguhero{padding:48px 0 36px}
+.lguhero h1{font-size:clamp(28px,5vw,44px);line-height:1.1;max-width:14ch;margin-bottom:14px}
+.lguhero p.lead{font-size:16px;color:var(--muted);max-width:56ch;margin:0 0 20px}
+.lguhero .acts{display:flex;gap:10px;flex-wrap:wrap}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px;align-items:center}
+.pills span.lbl0{font-size:13px;color:var(--muted);margin-right:2px}
+.pill{border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;background:var(--panel)}
+.lgu .btn{text-decoration:none;color:var(--text)}
+.lgu .btn.primary{color:#fff}
+
+/* grids and cards */
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin-top:18px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+.lcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.lcard h3{font-size:15px;margin:0 0 4px}
+.lcard p{margin:0;color:var(--muted);font-size:13px}
+.lcard .ic0{display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;margin-bottom:10px;color:var(--accent);background:var(--panel2)}
+.g4 h3{font-size:15px;margin:0 0 4px}
+.g4 p{margin:0;color:var(--muted);font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:18px;list-style:none;padding:0}
+.steps li{border-top:2px solid var(--line);padding-top:10px}
+.steps li:first-child{border-top-color:var(--accent)}
+.steps b{display:block;font-size:11px;color:var(--accent);letter-spacing:.06em;margin-bottom:4px}
+.steps strong{display:block;font-size:14px;margin-bottom:2px}
+.steps span{font-size:13px;color:var(--muted)}
+.ctabox{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.ctabox dl{margin:0}
+.ctabox dt{font-size:12px;color:var(--muted);margin-top:8px}
+.ctabox dd{margin:0;font-weight:600}
+.lgu details{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-top:12px}
+.lgu details summary{cursor:pointer;font-weight:600}
+.lgu details ul{padding-left:20px;color:var(--muted);font-size:13px}
+.lgufoot{padding:24px 16px 60px;text-align:center;font-size:12px;color:var(--muted)}
+.lgufoot a{color:var(--accent)}
+
+/* home page banner */
+.partnerband{max-width:1400px;margin:24px auto 0;padding:0 16px}
+.partnerband .in{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.partnerband .t{flex:1;min-width:240px}
+.partnerband .t small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.partnerband .t b{display:block;font-size:17px;margin-bottom:2px}
+.partnerband .t span{font-size:13px;color:var(--muted)}
+.partnerband .btn{text-decoration:none;color:var(--text)}
+.partnerband .btn.primary{color:#fff}
+
+/* application form */
+.apply{max-width:1040px;margin:0 auto;padding:28px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+.apply h1{font-size:30px;margin:2px 0 6px}
+.apply .head{grid-column:1 / -1}
+.apply .head p{margin:0;color:var(--muted)}
+.fcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:16px}
+.fcard h2{font-size:17px;margin:0 0 12px;display:flex;align-items:center;gap:10px}
+.fcard h2 i{font-style:normal;width:26px;height:26px;border-radius:50%;background:var(--accentbg);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fgrid .full{grid-column:1 / -1}
+.field label.l,.field .l{display:block;font-size:13px;font-weight:600;margin:0 0 4px}
+.field .lopt{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.field input[type=text],.field input[type=email],.field input[type=tel],.field select,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:9px 10px;color:var(--text)}
+.field textarea{height:96px;resize:vertical}
+.field.bad input,.field.bad select,.field.bad textarea{border-color:var(--s3)}
+.field .err{display:none;color:#f87171;font-size:12px;margin-top:4px}
+.field.bad .err{display:block}
+.field .hint{font-size:12px;color:var(--muted);margin-top:4px}
+.radios{display:flex;gap:8px;flex-wrap:wrap}
+.radios label{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:var(--r);padding:8px 14px;cursor:pointer;font-weight:600;font-size:13px}
+.radios label:has(input:checked){border-color:var(--accent);background:rgba(76,141,255,.12)}
+.drop{border:1px dashed var(--line);border-radius:var(--r);padding:16px;text-align:center;color:var(--muted);font-size:13px;background:var(--panel2)}
+.drop.over{border-color:var(--accent)}
+.drop label{color:var(--accent);font-weight:600;cursor:pointer}
+.drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.drop:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+.filerow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:var(--r);padding:8px 12px;margin-top:8px;font-size:13px}
+.filerow span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:13px;margin:6px 0 14px}
+.consent input{margin-top:3px}
+.side .lcard{margin-bottom:14px}
+.side ol{list-style:none;margin:0;padding:0}
+.side ol li{display:flex;gap:10px;margin:12px 0;font-size:13px}
+.side ol li i{font-style:normal;flex:none;width:24px;height:24px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--accent)}
+.side ol li b{display:block}
+.side ol li span{color:var(--muted)}
+.done{border:1px solid #1f7a55;background:rgba(52,211,153,.08);border-radius:10px;padding:18px}
+.done h2{font-size:20px;margin:0 0 6px}
+.done .ref{font-size:22px;font-weight:700;letter-spacing:.04em;margin:8px 0}
+.formerr{border:1px solid var(--s3);background:rgba(239,68,68,.08);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:13px}
+
+@media(max-width:900px){
+  .g4,.steps{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr}
+  .apply{grid-template-columns:1fr}
+  .ctabox{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .g4,.steps,.fgrid{grid-template-columns:1fr}
+}

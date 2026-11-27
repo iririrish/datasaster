@@ -28,6 +28,7 @@
 <meta name="twitter:image" content="https://YOUR-SITE.vercel.app/og-image.png">
 <link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/lgu.css">
 
   <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -42,6 +43,7 @@
   <div class="sp"></div>
   <span class="net" id="net" hidden>Offline</span>
   <div class="clock"><small>Manila time</small><b id="clk">--:--:--</b></div>
+  <a class="btn" id="btnPartner" href="partner.html">Partner with us</a>
   <button class="btn" id="btnRev" hidden aria-label="Review reports"></button>
   <button class="btn" id="btnSet"></button>
   <button class="btn primary" id="btnRep"></button>
@@ -115,6 +117,14 @@
   </section>
 </div>
 
+<section class="partnerband" id="partnerBand" aria-labelledby="pbH">
+  <div class="in">
+    <div class="t"><small>For LGUs, barangays, HOAs and response teams</small><b id="pbH">Run your area's disaster dashboard on DATAsaster</b><span>Review community reports and publish announcements to residents.</span></div>
+    <a class="btn" href="partner.html">Learn about partnership</a>
+    <a class="btn primary" href="apply.html">Apply for partnership</a>
+  </div>
+</section>
+
 <footer class="sitefoot" id="contactSec">
   <div class="fgrad" aria-hidden="true"></div>
   <div class="fwrap">
@@ -135,7 +145,8 @@
           <li><button type="button" class="flink" data-openreport="1">Report an incident</button></li>
           <li><button type="button" class="flink" data-goto="hotbar">Emergency hotlines</button></li>
           <li><button type="button" class="flink" data-goto="advSec">Official advisories</button></li>
-          <li><a class="flink" href="partner.html">Partner with us (agencies and media)</a></li>
+          <li><a class="flink" href="partner.html">Partner with us (LGUs, agencies and media)</a></li>
+          <li><a class="flink" href="apply.html">Apply for partnership</a></li>
           <li><button type="button" class="flink" data-account="1">Agency and media login</button></li>
           <li><a class="flink" href="privacy.html">Privacy Policy</a></li>
           <li><a class="flink" href="terms.html">Terms and Conditions</a></li>

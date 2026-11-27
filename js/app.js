@@ -1585,7 +1585,8 @@
     }
     r.push(linkRow('Privacy Policy', 'What the app stores and who receives data.', 'privacy.html', 'privacy'));
     r.push(linkRow('Terms and Conditions', 'The rules for using DATAsaster.', 'terms.html', 'terms'));
-    r.push(linkRow('Partner with us', 'How agencies and media outlets can take part.', 'partner.html', 'agency media join'));
+    r.push(linkRow('Partner with us', 'How LGUs, agencies and media outlets can take part.', 'partner.html', 'lgu agency media join'));
+    r.push(linkRow('Apply for partnership', 'Cities, municipalities, barangays, HOAs and response teams can apply.', 'apply.html', 'lgu apply partnership barangay hoa')); 
     r.push(mkRow('Open-source licenses', 'Libraries and data this app builds on.', 'leaflet firebase osm license', '<ul class="svlic"><li><b>Leaflet</b> 1.9.4, BSD 2-Clause License</li><li><b>Firebase JavaScript SDK</b> 10.14.1, Apache License 2.0</li><li>Map data \u00a9 OpenStreetMap contributors; tiles by Esri and CARTO</li><li>Weather and hazard data: RainViewer, Open-Meteo, NASA EONET, USGS, EMSC</li></ul>', true));
     P.push({ id: 'about', label: 'About', ic: 'info', desc: 'Version, release notes, help and legal information.', rows: r, reset: false });
     return P;

@@ -10,6 +10,7 @@ Philippine disaster monitoring: map, live layers, incidents, news and emergency 
 | `css/style.css` | All colours, spacing and fonts. Colours are at the top, under `:root` | Designer |
 | `js/data.js` | Content: sample incidents, emergency contacts, news outlets, forecast cities | Content and research |
 | `js/app.js` | How the app works (filters, map, layers, reports) | Coder |
+| `partner.html`, `apply.html`, `css/lgu.css`, `js/lgu-apply.js` | LGU Partnership module: public partner page and application form | Layout and coder |
 | `lib/` | The Leaflet map library. Do not edit | Nobody |
 | `manifest.webmanifest`, `sw.js`, `icon-*.png` | Makes it installable and usable offline | Rarely |
 
@@ -27,7 +28,7 @@ Philippine disaster monitoring: map, live layers, incidents, news and emergency 
 2. Click the pencil icon, make your change, then press **Commit changes**. (Or press the `.` key on the repository page for a full editor in the browser.)
 3. Wait about a minute, open the live link and press **Ctrl+Shift+R** to see the change.
 4. Agree who edits which file, so two people do not change the same file at once. If you get a conflict message, copy your change, reload the file and paste it again.
-5. Installed phone apps: after a big change, rename `datasaster-v5` to `datasaster-v6` in `sw.js` so phones fetch the new version.
+5. Installed phone apps: after a big change, raise the number in `var CACHE = 'datasaster-v..'` at the top of `sw.js` by one, so phones fetch the new version.
 
 ## Where to change things
 
@@ -84,3 +85,22 @@ Settings > Alerts. While the app is open, a notice appears when a High or Critic
 
 ### Earthquakes (real and live)
 Earthquakes come from USGS and EMSC (which collects Philippine data), refreshed every minute while the app is open and visible. Sample earthquakes were removed. Settings > Data has a **Smallest earthquake** choice (default M3.0). Official bulletins are still at PHIVOLCS (earthquake.phivolcs.dost.gov.ph), which can differ slightly.
+
+## LGU Partnership module (in progress)
+
+Built in phases on the branch `feature/lgu-disaster-module`. The phase plan, the rules to publish and the test list for each phase are in **`LGU_MODULE.md`**. Phase 1 is the public partner page and the application form.
+
+Before the form goes public:
+1. Replace `[your email address]`, `[your contact number]` and the office hours in `partner.html`, and `[your email address]` in `privacy.html` and `terms.html`.
+2. Publish `firestore.rules` and run the tests in `LGU_MODULE.md`.
+3. **Turn on App Check enforcement for Cloud Firestore** (see Spam protection above). The form is open to anyone, so without it a script can send many applications from new anonymous identities. The 10-minute limit only stops one device.
+
+### Future additions (left out on purpose to keep the first version simple and cheap)
+These were designed but are not built. Each can be added later without changing what is already there.
+- **Evacuation centers.** Public "Evacuation centers" page with a map and capacity bars, an "Evacuation centers" map layer, a "nearby centers" card on the home page, an organization console tab to add, edit and remove centers (name, address, map pin, maximum capacity, current occupancy, status, available capacity worked out automatically), a centers CSV export, and linking centers to announcements. Needs a `centers` collection with rules that let an organization write only its own centers.
+- **Automatic emails.** An acknowledgment email to the applicant and a notice to the owner on every application, and a status-change email. The browser cannot send mail, so this needs a small server function (for example a free Vercel serverless function with Brevo or Resend) and one secret API key.
+- **Larger uploads.** The letter of intent is limited to 600 KB and stored in Firestore. 10 MB files need Firebase Storage, which needs the paid Blaze plan, or another file host.
+- **Province, city and barangay drop-down lists** on the application form (the form uses typed text now). Needs a Philippine places list.
+- **Email-link invites.** The owner approves an application and the representative claims access by signing in with the invited email. Until then, the owner creates the Auth user and the `orgMembers/<uid>` document by hand in the Firebase console.
+- **Automatic deletion** of old applications and documents, to match the retention in `privacy.html` (needs a scheduled server function). It is done by hand until then.
+- **Reports for trends,** automatic PDF reports and historical analysis, SMS or push distribution of announcements, and detailed supplies or evacuee tracking.

@@ -1,5 +1,5 @@
-var CACHE = 'datasaster-v27';
-var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon.ico', './favicon-32.png', './apple-touch-icon.png', './privacy.html', './terms.html', './partner.html',
+var CACHE = 'datasaster-v28';
+var FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon.ico', './favicon-32.png', './apple-touch-icon.png', './privacy.html', './terms.html', './partner.html', './apply.html', './css/lgu.css', './js/lgu-apply.js',
   './css/style.css', './js/data.js', './js/app.js', './lib/leaflet.js', './lib/leaflet.css',
   './lib/firebase-app-compat.js', './lib/firebase-auth-compat.js', './lib/firebase-firestore-compat.js', './lib/firebase-app-check-compat.js', './js/firebase-config.js', './js/cloud.js'];
 

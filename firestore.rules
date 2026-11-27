@@ -4,7 +4,8 @@ service cloud.firestore {
 
     // admins/<uid> exists = some kind of admin. Its fields decide which kind:
     //   role "agency" (plus agency: "PAGASA", types: ["flood","typhoon"]) = limited agency account
-    //   anything else (no role, or the old role "admin") = owner, full powers as before
+    //   no role, role "owner" or the old role "admin" = owner, full powers as before
+    //   role "media" = media account. Any other role value has no powers.
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
@@ -18,8 +19,9 @@ service cloud.firestore {
     function isMedia() {
       return isAdmin() && adminDoc().get('role', '') == 'media';
     }
+    // Owner = allow-list: no role, role "owner" or the old role "admin". Any other role value (a typo, a new role) is NOT owner.
     function isOwner() {
-      return isAdmin() && !(adminDoc().get('role', '') in ['agency', 'media']);
+      return isAdmin() && adminDoc().get('role', 'owner') in ['owner', 'admin'];
     }
     // Same check for an assessment: the audit entry must be written in the same batch and point at the same report.
     function auditOkFor(rid, aid) {
@@ -230,6 +232,80 @@ service cloud.firestore {
         && (isOwner() || request.resource.data.agency == adminDoc().get('agency', ''))
         && request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 300
         && request.resource.data.time == request.time;
+      allow update, delete: if false;
+    }
+
+    // ================= LGU Partnership module, PHASE 1: partnership applications =================
+    // Anyone (including an anonymous visitor) can send ONE application per 10 minutes. Only the owner can read them.
+    // One application per write batch: the same batch must write applyLimits/<uid> naming this exact application id,
+    // and that id must not exist yet, so a batch cannot carry two applications.
+    function strOk(v, mn, mx) { return v is string && v.size() >= mn && v.size() <= mx; }
+    function limitDoc() { return /databases/$(database)/documents/applyLimits/$(request.auth.uid); }
+
+    match /applyLimits/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['lastApply','appId'])
+        && request.resource.data.lastApply == request.time
+        && request.resource.data.appId is string
+        && request.resource.data.appId.matches('[A-Za-z0-9]{20}')
+        && !exists(/databases/$(database)/documents/applications/$(request.resource.data.appId))
+        && existsAfter(/databases/$(database)/documents/applications/$(request.resource.data.appId))
+        && getAfter(/databases/$(database)/documents/applications/$(request.resource.data.appId)).data.uid == request.auth.uid
+        && (resource == null || request.time > resource.data.lastApply + duration.value(10, 'm'));
+      allow read, delete: if false;
+    }
+
+    match /applications/{appId} {
+      allow read: if isOwner();
+      allow create: if request.auth != null
+        && appId.matches('[A-Za-z0-9]{20}')
+        && request.resource.data.keys().hasAll(['uid','refNo','status','time','orgName','orgType','province','city','barangay','address','repName','position','email','phone','purpose','message','hasDoc','docName','docType','docSize','agreed'])
+        && request.resource.data.keys().hasOnly(['uid','refNo','status','time','orgName','orgType','province','city','barangay','address','repName','position','email','phone','purpose','message','hasDoc','docName','docType','docSize','agreed'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.time == request.time
+        && request.resource.data.agreed == true
+        && request.resource.data.refNo is string && request.resource.data.refNo.matches('LGU-[0-9]{4}-[A-Z0-9]{6}')
+        && strOk(request.resource.data.orgName, 3, 120)
+        && request.resource.data.orgType in ['City','Municipality','Barangay','HOA','Other']
+        && strOk(request.resource.data.province, 2, 60)
+        && strOk(request.resource.data.city, 2, 80)
+        && strOk(request.resource.data.barangay, 0, 80)
+        && strOk(request.resource.data.address, 3, 200)
+        && strOk(request.resource.data.repName, 3, 100)
+        && strOk(request.resource.data.position, 2, 100)
+        && strOk(request.resource.data.email, 6, 120)
+        && request.resource.data.email.matches('[^@ ]+@[^@ ]+[.][^@ ]+')
+        && request.resource.data.phone is string && request.resource.data.phone.matches('[0-9+() -]{7,20}')
+        && request.resource.data.purpose in ['Publish emergency announcements','Review community incident reports','Both of the above','Other']
+        && strOk(request.resource.data.message, 0, 1500)
+        && request.resource.data.hasDoc is bool
+        && strOk(request.resource.data.docName, 0, 100)
+        && request.resource.data.docType in ['', 'application/pdf', 'image/jpeg', 'image/png']
+        && request.resource.data.docSize is int && request.resource.data.docSize >= 0 && request.resource.data.docSize <= 614400
+        && (request.resource.data.hasDoc == true
+            ? (request.resource.data.docName.size() > 0 && request.resource.data.docType != '' && request.resource.data.docSize > 0
+               && existsAfter(/databases/$(database)/documents/applicationDocs/$(appId)))
+            : (request.resource.data.docName == '' && request.resource.data.docType == '' && request.resource.data.docSize == 0))
+        && getAfter(limitDoc()).data.appId == appId
+        && getAfter(limitDoc()).data.lastApply == request.time
+        && (!exists(limitDoc()) || request.time > get(limitDoc()).data.lastApply + duration.value(10, 'm'));
+      allow update, delete: if false;
+    }
+
+    // The optional letter of intent (base64 text, 600 KB file limit). Private: only the owner can read it.
+    match /applicationDocs/{appId} {
+      allow read: if isOwner();
+      allow create: if request.auth != null
+        && appId.matches('[A-Za-z0-9]{20}')
+        && request.resource.data.keys().hasOnly(['uid','data'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() > 0 && request.resource.data.data.size() < 850000
+        && !exists(/databases/$(database)/documents/applications/$(appId))
+        && existsAfter(/databases/$(database)/documents/applications/$(appId))
+        && getAfter(/databases/$(database)/documents/applications/$(appId)).data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/applications/$(appId)).data.hasDoc == true;
       allow update, delete: if false;
     }
   }
