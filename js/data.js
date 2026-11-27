@@ -79,7 +79,7 @@ var APP_INFO = {
   name: 'DATAsaster',
   version: '1.0.0',
   build: '27',
-  contactEmail: '',
+  contactEmail: 'aitetha8@gmail.com',
   changelogUrl: '',
   docsUrl: '',
   helpUrl: '',

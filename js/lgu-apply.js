@@ -134,7 +134,7 @@
 
   function start() {
     var cfg = window.FIREBASE_CONFIG;
-    if (!cfg || !cfg.apiKey || !window.firebase) { $('sendNote').textContent = 'Online applications are not available right now. Please contact us by email instead.'; return; }
+    if (!cfg || !cfg.apiKey || !window.firebase) { $('sendNote').textContent = 'Online applications are not available right now. Please email aitetha8@gmail.com instead.'; return; }
     try {
       firebase.initializeApp(cfg);
       if (firebase.appCheck) {
@@ -144,7 +144,7 @@
         } catch (e0) {}
       }
       db = firebase.firestore(); auth = firebase.auth();
-    } catch (e) { $('sendNote').textContent = 'Online applications are not available right now. Please contact us by email instead.'; return; }
+    } catch (e) { $('sendNote').textContent = 'Online applications are not available right now. Please email aitetha8@gmail.com instead.'; return; }
     auth.onAuthStateChanged(function (u) {
       if (u) { uid = u.uid; $('send').disabled = false; $('sendNote').textContent = 'You will get a reference number right away.'; }
       else { auth.signInAnonymously().catch(function () { $('sendNote').textContent = 'Could not connect. Check your internet connection and reload the page.'; }); }

@@ -115,3 +115,18 @@
 @media(max-width:560px){
   .g4,.steps,.fgrid{grid-template-columns:1fr}
 }
+
+/* partner announcements on the home page */
+.annbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 16px;background:rgba(251,146,60,.12);border-bottom:1px solid #7a4a1f;font-size:13px}
+.annbar b{font-weight:700}
+.annbar .sp{flex:1}
+.annbar button{background:none;border:0;color:var(--accent);font-weight:600;cursor:pointer;padding:2px 4px}
+.annlist:not(:empty){margin-bottom:14px}
+.annlist .ann{border:1px solid var(--line);border-left:3px solid #fb923c;border-radius:var(--r);background:var(--panel2);padding:12px 14px;margin-bottom:10px}
+.annlist .ann.gen{border-left-color:var(--accent)}
+.annlist .ann h3{font-size:15px;margin:6px 0 4px}
+.annlist .ann p{margin:0 0 6px;font-size:13px;white-space:pre-line}
+.annlist .ann small{color:var(--muted);font-size:12px}
+.annlist .ann .atags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
+.annlist .ann .atag{font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:4px;background:var(--panel);border:1px solid var(--line)}
+.annlist .ann .atag.evac{background:rgba(251,146,60,.2);color:#fb923c;border-color:transparent}

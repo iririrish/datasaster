@@ -88,10 +88,10 @@ Earthquakes come from USGS and EMSC (which collects Philippine data), refreshed 
 
 ## LGU Partnership module (in progress)
 
-Built in phases on the branch `feature/lgu-disaster-module`. The phase plan, the rules to publish and the test list for each phase are in **`LGU_MODULE.md`**. Phase 1 is the public partner page and the application form.
+Built in phases on the branch `feature/lgu-disaster-module`. The phase plan, the rules to publish and the test list for each phase are in **`LGU_MODULE.md`**. Phase 1 is the public partner page and the application form. Phase 2 is the organization console (`console.html`) and public announcements.
 
 Before the form goes public:
-1. Replace `[your email address]`, `[your contact number]` and the office hours in `partner.html`, and `[your email address]` in `privacy.html` and `terms.html`.
+1. The contact email is set to `aitetha8@gmail.com` (in `partner.html`, `privacy.html`, `terms.html`, `js/data.js`, `js/lgu-apply.js` and `js/lgu-console.js`). Still to fill in: `[your contact number]` and the office hours in `partner.html`.
 2. Publish `firestore.rules` and run the tests in `LGU_MODULE.md`.
 3. **Turn on App Check enforcement for Cloud Firestore** (see Spam protection above). The form is open to anyone, so without it a script can send many applications from new anonymous identities. The 10-minute limit only stops one device.
 

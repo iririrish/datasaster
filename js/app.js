@@ -1549,6 +1549,7 @@
     } else {
       r.push(mkRow('Sign in', 'For moderators, agencies and media accounts created by the DATAsaster team. Everyone else is signed in automatically and needs nothing here.', 'login admin agency media', '<div class="svpw"><label class="l" for="adEmail">Email</label><input type="text" id="adEmail" autocomplete="username"><label class="l" for="adPw">Password</label><input type="password" id="adPw" autocomplete="current-password"><div class="acts"><button class="btn primary" data-adminlogin="1">Sign in</button></div></div>', true));
     }
+    r.push(linkRow('Partner organization console', 'For approved LGUs, barangays, HOAs and response teams.', 'console.html', 'lgu console partner organization'));
     P.push({ id: 'account', label: 'Account', ic: 'user', desc: 'Sign in, sign out and change your password.', rows: r, reset: false });
     /* Admin tools */
     if (CLOUD.admin) {

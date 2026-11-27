@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1318">
+<title>Organization console | DATAsaster</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/lgu.css">
+<link rel="stylesheet" href="css/lgu-console.css">
+</head>
+<body class="lgupage lgu cons">
+<noscript><p style="padding:16px;margin:0;background:#fbbf24;color:#14181f">The console needs JavaScript. Please turn it on in your browser.</p></noscript>
+<header class="lgutop" id="ctop">
+  <a class="brand" href="./"><img src="icon-192.png" alt="" width="36" height="36"><div><b>DATAsaster <span class="m" style="font-weight:400">&middot; LGU console</span></b><small id="who">Sign in to continue</small></div></a>
+  <div class="sp"></div>
+  <div class="clock"><small>Manila time</small><b id="clk">--:--:--</b></div>
+  <a class="btn" href="./">View public map</a>
+  <button class="btn" id="btnOut" type="button" hidden>Sign out</button>
+  <button class="btn primary" id="btnNew" type="button" hidden>+ New announcement</button>
+</header>
+<nav class="ctabs" id="ctabs" hidden aria-label="Console sections"></nav>
+<main id="app" class="capp"><p class="m" style="padding:24px 16px">Loading...</p></main>
+<div class="toast" id="toast"></div>
+<p class="lgufoot">DATAsaster is not an official government site. Announcements are posted by each partner organization. <a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms and Conditions</a></p>
+
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/firebase-firestore-compat.js"></script>
+<script src="lib/firebase-app-check-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/lgu-console.js"></script>
+</body>
+</html>

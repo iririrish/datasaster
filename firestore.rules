@@ -131,6 +131,11 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','auditId'])
           && request.resource.data.diff(resource.data).affectedKeys().hasAll(['auditId'])
           && auditOk(id))
+        // Phase 2: an organization admin may verify/resolve a report only if it is inside THEIR organization's
+        // coverage box and hazard types. The change is stamped with their organization id (vOrg).
+        || (canActOnReport(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','vOrg'])
+          && request.resource.data.get('vOrg', '') == myOrgId())
       );
       // Authors and the owner can delete. Agencies cannot delete community reports.
       allow delete: if request.auth != null && ((resource.data.uid == request.auth.uid && !isMedia()) || isOwner());
@@ -307,6 +312,72 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/applications/$(appId)).data.uid == request.auth.uid
         && getAfter(/databases/$(database)/documents/applications/$(appId)).data.hasDoc == true;
       allow update, delete: if false;
+    }
+
+    // ================= LGU module, PHASE 2: organization console =================
+    // orgMembers/<uid> (role "orgadmin", orgId) and organizations/<orgId> are created by hand in the Firebase console.
+    // An organization admin can only ever touch documents whose orgId is their own, and only while the organization is "active".
+    function isOrgAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/orgMembers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/orgMembers/$(request.auth.uid)).data.get('role', '') == 'orgadmin';
+    }
+    function myOrgId() {
+      return get(/databases/$(database)/documents/orgMembers/$(request.auth.uid)).data.get('orgId', '');
+    }
+    function orgOf(oid) { return get(/databases/$(database)/documents/organizations/$(oid)).data; }
+    function isOrgAdminOf(oid) {
+      return isOrgAdmin() && oid is string && oid != '' && myOrgId() == oid && orgOf(oid).get('status', '') == 'active';
+    }
+    // Is this report (r = its stored data) inside my organization's hazard types and coverage box?
+    function canActOnReport(r) {
+      return isOrgAdminOf(myOrgId())
+        && r.type in orgOf(myOrgId()).get('types', [])
+        && r.lat >= orgOf(myOrgId()).get('south', 91) && r.lat <= orgOf(myOrgId()).get('north', -91)
+        && r.lng >= orgOf(myOrgId()).get('west', 181) && r.lng <= orgOf(myOrgId()).get('east', -181);
+    }
+    function annOk(d, oid) {
+      return d.keys().hasAll(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
+        && d.keys().hasOnly(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
+        && d.orgId == oid
+        && d.orgName == orgOf(oid).get('name', '')
+        && d.type in ['evacuation','general']
+        && strOk(d.title, 3, 120) && strOk(d.desc, 3, 1500) && strOk(d.areas, 0, 200)
+        && d.startsAt is number && d.endsAt is number && d.endsAt > d.startsAt
+        && d.endsAt <= request.time.toMillis() + 2592000000 + 3600000
+        && d.status in ['draft','published']
+        && d.uid == request.auth.uid
+        && d.updatedAt == request.time;
+    }
+
+    // Who am I? Read your own membership only (the owner can read all).
+    match /orgMembers/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isOwner());
+      allow write: if false;
+    }
+
+    // Public organization profile. An organization admin may change only address, hotline and public email of their own organization.
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow update: if isOrgAdminOf(orgId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['address','hotline','publicEmail','updatedAt'])
+        && strOk(request.resource.data.get('address', ''), 3, 200)
+        && strOk(request.resource.data.get('hotline', ''), 0, 30)
+        && (request.resource.data.get('hotline', '') == '' || request.resource.data.get('hotline', '').matches('[0-9+() -]{3,30}'))
+        && strOk(request.resource.data.get('publicEmail', ''), 0, 120)
+        && (request.resource.data.get('publicEmail', '') == '' || request.resource.data.get('publicEmail', '').matches('[^@ ]+@[^@ ]+[.][^@ ]+'))
+        && request.resource.data.updatedAt == request.time;
+      allow create, delete: if false;
+    }
+
+    // Announcements: published ones are public; drafts are visible only to the organization's admins (and the owner).
+    match /announcements/{aid} {
+      allow read: if resource.data.status == 'published' || isOrgAdminOf(resource.data.orgId) || isOwner();
+      allow create: if aid.matches('[A-Za-z0-9]{20}')
+        && isOrgAdminOf(request.resource.data.get('orgId', ''))
+        && annOk(request.resource.data, request.resource.data.get('orgId', ''));
+      allow update: if isOrgAdminOf(resource.data.orgId) && annOk(request.resource.data, resource.data.orgId);
+      allow delete: if isOrgAdminOf(resource.data.orgId) || isOwner();
     }
   }
 }
