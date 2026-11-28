@@ -247,3 +247,9 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 - `DEV_README.md`, `CHANGELOG.md`, `DEVELOPMENT_STATUS.md`. No source files changed.
 ### Notes
 - Owner pasted the Firestore rules they have; they read the same as the strict `firestore.rules` file in the upload (canPost, photosOk, six types). Treated as the live rules, but the Firebase console was not seen directly.
+
+## Cleanup and Phase 4
+- Fixed: every click inside Settings re-drew the page. `findAction` walked up to `<body>`, whose `data-view` attribute is also an action name, so a click in the email box counted as "show Settings", dropped focus and erased typing. This was the cause of the Account search and email typing bugs. The walk now stops at `<body>`.
+- Account: the settings search is no longer filled by browser autofill, and has a clear button.
+- Partnership: permanent banner removed from the home page; a once-per-day popup shows when the News section is reached.
+- Area filter: phone layout of the announcement and area bars made compact so the map stays large.

@@ -4,7 +4,8 @@ service cloud.firestore {
 
     // admins/<uid> exists = some kind of admin. Its fields decide which kind:
     //   role "agency" (plus agency: "PAGASA", types: ["flood","typhoon"]) = limited agency account
-    //   anything else (no role, or the old role "admin") = owner, full powers as before
+    //   no role, role "owner" or the old role "admin" = owner, full powers as before
+    //   role "media" = media account. Any other role value has no powers.
     function isAdmin() {
       return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
@@ -18,8 +19,9 @@ service cloud.firestore {
     function isMedia() {
       return isAdmin() && adminDoc().get('role', '') == 'media';
     }
+    // Owner = allow-list: no role, role "owner" or the old role "admin". Any other role value (a typo, a new role) is NOT owner.
     function isOwner() {
-      return isAdmin() && !(adminDoc().get('role', '') in ['agency', 'media']);
+      return isAdmin() && adminDoc().get('role', 'owner') in ['owner', 'admin'];
     }
     // Same check for an assessment: the audit entry must be written in the same batch and point at the same report.
     function auditOkFor(rid, aid) {
@@ -98,8 +100,9 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null
         && id.matches('[A-Za-z0-9_-]{1,40}')
-        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified','author','media'])
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified','author','media','regCode','provCode','cityCode','brgyCode'])
         && request.resource.data.uid == request.auth.uid
+        && codeOk(request.resource.data.get('regCode', '')) && codeOk(request.resource.data.get('provCode', '')) && codeOk(request.resource.data.get('cityCode', '')) && codeOk(request.resource.data.get('brgyCode', ''))
         && request.resource.data.type in ['flood','fire','quake','volcano','typhoon','landslide']
         && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
         && request.resource.data.title is string && request.resource.data.title.size() <= 200
@@ -129,6 +132,11 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','auditId'])
           && request.resource.data.diff(resource.data).affectedKeys().hasAll(['auditId'])
           && auditOk(id))
+        // Phase 2: an organization admin may verify/resolve a report only if it is inside THEIR organization's
+        // coverage box and hazard types. The change is stamped with their organization id (vOrg).
+        || (canActOnReport(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved','resAt','verified','vOrg'])
+          && request.resource.data.get('vOrg', '') == myOrgId())
       );
       // Authors and the owner can delete. Agencies cannot delete community reports.
       allow delete: if request.auth != null && ((resource.data.uid == request.auth.uid && !isMedia()) || isOwner());
@@ -231,6 +239,221 @@ service cloud.firestore {
         && request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 300
         && request.resource.data.time == request.time;
       allow update, delete: if false;
+    }
+
+    // ================= LGU Partnership module, PHASE 1: partnership applications =================
+    // Anyone (including an anonymous visitor) can send ONE application per 10 minutes. Only the owner can read them.
+    // One application per write batch: the same batch must write applyLimits/<uid> naming this exact application id,
+    // and that id must not exist yet, so a batch cannot carry two applications.
+    function strOk(v, mn, mx) { return v is string && v.size() >= mn && v.size() <= mx; }
+    function limitDoc() { return /databases/$(database)/documents/applyLimits/$(request.auth.uid); }
+
+    match /applyLimits/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['lastApply','appId'])
+        && request.resource.data.lastApply == request.time
+        && request.resource.data.appId is string
+        && request.resource.data.appId.matches('[A-Za-z0-9]{20}')
+        && !exists(/databases/$(database)/documents/applications/$(request.resource.data.appId))
+        && existsAfter(/databases/$(database)/documents/applications/$(request.resource.data.appId))
+        && getAfter(/databases/$(database)/documents/applications/$(request.resource.data.appId)).data.uid == request.auth.uid
+        && (resource == null || request.time > resource.data.lastApply + duration.value(10, 'm'));
+      allow read, delete: if false;
+    }
+
+    match /applications/{appId} {
+      allow read: if isOwner();
+      allow create: if request.auth != null
+        && appId.matches('[A-Za-z0-9]{20}')
+        && request.resource.data.keys().hasAll(['uid','refNo','status','time','orgName','orgType','province','city','barangay','address','repName','position','email','phone','purpose','message','hasDoc','docName','docType','docSize','agreed'])
+        && request.resource.data.keys().hasOnly(['uid','refNo','status','time','orgName','orgType','province','city','barangay','address','repName','position','email','phone','purpose','message','hasDoc','docName','docType','docSize','agreed'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.time == request.time
+        && request.resource.data.agreed == true
+        && request.resource.data.refNo is string && request.resource.data.refNo.matches('LGU-[0-9]{4}-[A-Z0-9]{6}')
+        && strOk(request.resource.data.orgName, 3, 120)
+        && request.resource.data.orgType in ['City','Municipality','Barangay','HOA','Other']
+        && strOk(request.resource.data.province, 2, 60)
+        && strOk(request.resource.data.city, 2, 80)
+        && strOk(request.resource.data.barangay, 0, 80)
+        && strOk(request.resource.data.address, 3, 200)
+        && strOk(request.resource.data.repName, 3, 100)
+        && strOk(request.resource.data.position, 2, 100)
+        && strOk(request.resource.data.email, 6, 120)
+        && request.resource.data.email.matches('[^@ ]+@[^@ ]+[.][^@ ]+')
+        && request.resource.data.phone is string && request.resource.data.phone.matches('[0-9+() -]{7,20}')
+        && request.resource.data.purpose in ['Publish emergency announcements','Review community incident reports','Both of the above','Other']
+        && strOk(request.resource.data.message, 0, 1500)
+        && request.resource.data.hasDoc is bool
+        && strOk(request.resource.data.docName, 0, 100)
+        && request.resource.data.docType in ['', 'application/pdf', 'image/jpeg', 'image/png']
+        && request.resource.data.docSize is int && request.resource.data.docSize >= 0 && request.resource.data.docSize <= 614400
+        && (request.resource.data.hasDoc == true
+            ? (request.resource.data.docName.size() > 0 && request.resource.data.docType != '' && request.resource.data.docSize > 0
+               && existsAfter(/databases/$(database)/documents/applicationDocs/$(appId)))
+            : (request.resource.data.docName == '' && request.resource.data.docType == '' && request.resource.data.docSize == 0))
+        && getAfter(limitDoc()).data.appId == appId
+        && getAfter(limitDoc()).data.lastApply == request.time
+        && (!exists(limitDoc()) || request.time > get(limitDoc()).data.lastApply + duration.value(10, 'm'));
+      // Phase 3: only the owner may change the review status (and link the organization it created), or delete (retention).
+      allow update: if isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt','decidedAt','orgId'])
+        && request.resource.data.status in ['pending','review','approved','rejected']
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.get('decidedAt', 0) is number
+        && request.resource.data.get('orgId', '') is string;
+      allow delete: if isOwner();
+    }
+
+    // Phase 3: private review notes. Owner only.
+    match /applications/{appId}/notes/{noteId} {
+      allow read, delete: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly(['text','time','by'])
+        && strOk(request.resource.data.text, 1, 2000)
+        && strOk(request.resource.data.get('by', ''), 0, 120)
+        && request.resource.data.time == request.time;
+      allow update: if false;
+    }
+
+    // The optional letter of intent (base64 text, 600 KB file limit). Private: only the owner can read it.
+    match /applicationDocs/{appId} {
+      allow read: if isOwner();
+      allow create: if request.auth != null
+        && appId.matches('[A-Za-z0-9]{20}')
+        && request.resource.data.keys().hasOnly(['uid','data'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() > 0 && request.resource.data.data.size() < 850000
+        && !exists(/databases/$(database)/documents/applications/$(appId))
+        && existsAfter(/databases/$(database)/documents/applications/$(appId))
+        && getAfter(/databases/$(database)/documents/applications/$(appId)).data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/applications/$(appId)).data.hasDoc == true;
+      allow update: if false;
+      allow delete: if isOwner();
+    }
+
+    // ================= LGU module, PHASE 2: organization console =================
+    // orgMembers/<uid> (role "orgadmin", orgId) and organizations/<orgId> are created by hand in the Firebase console.
+    // An organization admin can only ever touch documents whose orgId is their own, and only while the organization is "active".
+    function isOrgAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/orgMembers/$(request.auth.uid))
+        && get(/databases/$(database)/documents/orgMembers/$(request.auth.uid)).data.get('role', '') == 'orgadmin';
+    }
+    function myOrgId() {
+      return get(/databases/$(database)/documents/orgMembers/$(request.auth.uid)).data.get('orgId', '');
+    }
+    function orgOf(oid) { return get(/databases/$(database)/documents/organizations/$(oid)).data; }
+    function isOrgAdminOf(oid) {
+      return isOrgAdmin() && oid is string && oid != '' && myOrgId() == oid && orgOf(oid).get('status', '') == 'active';
+    }
+    // ---- Phase 4: coverage by official PSGC place codes ----
+    // A place code is 9 or 10 digits (or empty). Rules only check the format; the codes come from the public PSGC list in the browser.
+    function codeOk(c) { return c is string && (c == '' || c.matches('[0-9]{9,10}')); }
+    function codeList(l) { return l is list && l.size() <= 50; }
+    function covList(o, k) { return o.get(k, []); }
+    function allCov(o) { return covList(o, 'regCodes').concat(covList(o, 'provCodes')).concat(covList(o, 'cityCodes')).concat(covList(o, 'brgyCodes')); }
+    function hasCov(o) { return allCov(o).size() > 0; }
+    function inList(l, v) { return v is string && v != '' && v in l; }
+    // Does organization o cover report r (r = stored report data)? An organization with no code lists keeps the old box-only rule.
+    // A report with no codes at all is left to the box rule too. A report WITH codes must match one of the organization's codes.
+    function covers(o, r) {
+      return !hasCov(o)
+        || (r.get('regCode', '') == '' && r.get('provCode', '') == '' && r.get('cityCode', '') == '' && r.get('brgyCode', '') == '')
+        || inList(covList(o, 'brgyCodes'), r.get('brgyCode', ''))
+        || inList(covList(o, 'cityCodes'), r.get('cityCode', ''))
+        || inList(covList(o, 'provCodes'), r.get('provCode', ''))
+        || inList(covList(o, 'regCodes'), r.get('regCode', ''));
+    }
+    // Announcement audience: nationwide (only for organizations without code lists) or up to 10 areas inside the organization's own coverage.
+    function scopeOk(d, o) {
+      return (!('scope' in d) && !('areaCodes' in d) && !hasCov(o))
+        || (d.get('scope', '') == 'national' && !('areaCodes' in d) && !hasCov(o))
+        || (d.get('scope', '') == 'areas' && d.get('areaCodes', []) is list && d.areaCodes.size() >= 1 && d.areaCodes.size() <= 10
+            && (!hasCov(o) || d.areaCodes.hasOnly(allCov(o))));
+    }
+    // Is this report (r = its stored data) inside my organization's hazard types and coverage box?
+    function canActOnReport(r) {
+      return isOrgAdminOf(myOrgId())
+        && r.type in orgOf(myOrgId()).get('types', [])
+        && r.lat >= orgOf(myOrgId()).get('south', 91) && r.lat <= orgOf(myOrgId()).get('north', -91)
+        && r.lng >= orgOf(myOrgId()).get('west', 181) && r.lng <= orgOf(myOrgId()).get('east', -181)
+        && covers(orgOf(myOrgId()), r);
+    }
+    function annOk(d, oid) {
+      return d.keys().hasAll(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
+        && d.keys().hasOnly(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt','scope','areaCodes'])
+        && scopeOk(d, orgOf(oid))
+        && d.orgId == oid
+        && d.orgName == orgOf(oid).get('name', '')
+        && d.type in ['evacuation','general']
+        && strOk(d.title, 3, 120) && strOk(d.desc, 3, 1500) && strOk(d.areas, 0, 200)
+        && d.startsAt is number && d.endsAt is number && d.endsAt > d.startsAt
+        && d.endsAt <= request.time.toMillis() + 2592000000 + 3600000
+        && d.status in ['draft','published']
+        && d.uid == request.auth.uid
+        && d.updatedAt == request.time;
+    }
+
+    // Whole organization document, as written by the owner. The coverage box must lie inside the Philippines.
+    function orgDocOk(d) {
+      return d.keys().hasAll(['name','type','province','city','address','status','types','south','north','west','east','updatedAt'])
+        && d.keys().hasOnly(['name','type','province','city','barangay','address','hotline','publicEmail','status','types','south','north','west','east','appId','updatedAt','regCodes','provCodes','cityCodes','brgyCodes','coverageNames'])
+        && codeList(d.get('regCodes', [])) && codeList(d.get('provCodes', [])) && codeList(d.get('cityCodes', [])) && codeList(d.get('brgyCodes', [])) && codeList(d.get('coverageNames', []))
+        && strOk(d.name, 3, 120)
+        && d.type in ['City','Municipality','Barangay','HOA','Other']
+        && strOk(d.province, 2, 80) && strOk(d.city, 2, 80) && strOk(d.get('barangay', ''), 0, 80)
+        && strOk(d.address, 3, 200)
+        && strOk(d.get('hotline', ''), 0, 30) && (d.get('hotline', '') == '' || d.get('hotline', '').matches('[0-9+() -]{3,30}'))
+        && strOk(d.get('publicEmail', ''), 0, 120) && (d.get('publicEmail', '') == '' || d.get('publicEmail', '').matches('[^@ ]+@[^@ ]+[.][^@ ]+'))
+        && d.status in ['active','suspended']
+        && d.types is list && d.types.size() >= 1 && d.types.size() <= 6 && d.types.hasOnly(['flood','fire','quake','volcano','typhoon','landslide'])
+        && d.south is number && d.north is number && d.west is number && d.east is number
+        && d.south >= 4 && d.north <= 22 && d.west >= 116 && d.east <= 127 && d.south < d.north && d.west < d.east
+        && strOk(d.get('appId', ''), 0, 20)
+        && d.updatedAt == request.time;
+    }
+
+    // Who am I? Read your own membership only (the owner can read all).
+    match /orgMembers/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isOwner());
+      // Phase 3: only the owner links or unlinks an organization admin.
+      allow create, update: if isOwner()
+        && request.resource.data.keys().hasOnly(['role','orgId','email'])
+        && request.resource.data.keys().hasAll(['role','orgId'])
+        && request.resource.data.role == 'orgadmin'
+        && request.resource.data.orgId is string
+        && exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId))
+        && strOk(request.resource.data.get('email', ''), 0, 120);
+      allow delete: if isOwner();
+    }
+
+    // Public organization profile. An organization admin may change only address, hotline and public email of their own organization.
+    match /organizations/{orgId} {
+      allow read: if true;
+      allow update: if isOrgAdminOf(orgId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['address','hotline','publicEmail','updatedAt'])
+        && strOk(request.resource.data.get('address', ''), 3, 200)
+        && strOk(request.resource.data.get('hotline', ''), 0, 30)
+        && (request.resource.data.get('hotline', '') == '' || request.resource.data.get('hotline', '').matches('[0-9+() -]{3,30}'))
+        && strOk(request.resource.data.get('publicEmail', ''), 0, 120)
+        && (request.resource.data.get('publicEmail', '') == '' || request.resource.data.get('publicEmail', '').matches('[^@ ]+@[^@ ]+[.][^@ ]+'))
+        && request.resource.data.updatedAt == request.time;
+      // Phase 3: the owner creates and edits organizations (never deletes: suspend instead).
+      allow create, update: if isOwner() && orgDocOk(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Announcements: published ones are public; drafts are visible only to the organization's admins (and the owner).
+    match /announcements/{aid} {
+      allow read: if resource.data.status == 'published' || isOrgAdminOf(resource.data.orgId) || isOwner();
+      allow create: if aid.matches('[A-Za-z0-9]{20}')
+        && isOrgAdminOf(request.resource.data.get('orgId', ''))
+        && annOk(request.resource.data, request.resource.data.get('orgId', ''));
+      allow update: if isOrgAdminOf(resource.data.orgId) && annOk(request.resource.data, resource.data.orgId);
+      allow delete: if isOrgAdminOf(resource.data.orgId) || isOwner();
     }
   }
 }

@@ -548,3 +548,9 @@ body.fcon .legend{bottom:134px}
   .svmain select,.ssel{width:150px}
 }
 @media(prefers-reduced-motion:reduce){.svmain.fadein,.svn,.flink{animation:none;transition:none}}
+
+/* Settings search: clear button */
+.sv2 .search{position:relative}
+.sv2 .search input{padding-right:34px}
+.svclr{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;background:none;color:var(--muted);border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.svclr:hover,.svclr:focus-visible{background:var(--panel2);color:var(--text)}

@@ -148,6 +148,147 @@
   /* ---------- filtering ---------- */
   function distKm(a, b, c, d) { var p = Math.PI / 180, x = Math.sin((c - a) * p / 2), y = Math.sin((d - b) * p / 2), q = x * x + Math.cos(a * p) * Math.cos(c * p) * y * y; return 12742 * Math.asin(Math.min(1, Math.sqrt(q))); }
   function fmtKm(k) { return k < 10 ? k.toFixed(1) + ' km' : Math.round(k) + ' km'; }
+  /* ---------- Phase 4: location filter (PSGC codes; see js/places.js) ---------- */
+  var LOC_KM = { 1: 15, 2: 60, 3: 150 }, LOC_ZOOM = { 0: 14, 1: 12, 2: 10, 3: 8 }, areaRaw = {}, areaStop = null, areaKey = '', globalRaw = [], orgCov = null;
+  function locOn() { return !!(window.PLACES && PLACES.isOn()); }
+  function locMax() { var s = PLACES.scope(); return Math.max(s === 'city' ? 1 : (s === 'reg' ? 3 : 2), PLACES.level()); }
+  /* 0 = same barangay, 1 = same city, 2 = same province, 3 = same region, 9 = elsewhere. Reports are matched by their PSGC codes;
+     old reports with no codes are placed by distance from the saved place's map centre. */
+  function locRank(r) {
+    var L = PLACES.get(), d;
+    if (!L) { return 0; }
+    if (r.brgyCode && L.brgy && r.brgyCode === L.brgy.c) { return 0; }
+    if (r.cityCode && L.city && r.cityCode === L.city.c) { return 1; }
+    if (r.provCode && L.prov && r.provCode === L.prov.c) { return 2; }
+    if (r.regCode && L.reg && r.regCode === L.reg.c) { return 3; }
+    if (r.regCode || r.provCode || r.cityCode || r.brgyCode) { return 9; }
+    if (typeof L.lat !== 'number') { return 9; }
+    d = distKm(L.lat, L.lng, r.lat, r.lng);
+    return d <= LOC_KM[1] ? 1 : (d <= LOC_KM[2] ? 2 : (d <= LOC_KM[3] ? 3 : 9));
+  }
+  function locOK(r) { return !locOn() || locRank(r) <= locMax(); }
+  function mergeRaw() {
+    var by = {}, out = [], k, i;
+    for (i = 0; i < globalRaw.length; i++) { by[globalRaw[i]._id] = globalRaw[i]; }
+    for (k in areaRaw) { if (areaRaw.hasOwnProperty(k) && !by[k]) { by[k] = areaRaw[k]; } }
+    for (k in by) { if (by.hasOwnProperty(k)) { out.push(by[k]); } }
+    out.sort(function (a, b) { return (b.time || 0) - (a.time || 0); });
+    cloudRaw = out;
+  }
+  /* Also listen to the newest reports of the saved area, so a busy country cannot push them out of the newest 200. */
+  function syncArea() {
+    var L = window.PLACES && PLACES.get(), f = '', c = '', m;
+    if (L && locOn() && cloudOn() && CLOUD.watchArea) {
+      m = locMax();
+      if (m >= 3 && L.reg) { f = 'regCode'; c = L.reg.c; } else if (m >= 2 && L.prov) { f = 'provCode'; c = L.prov.c; } else if (L.city) { f = 'cityCode'; c = L.city.c; }
+    }
+    if (f + c === areaKey) { return; }
+    areaKey = f + c;
+    if (areaStop) { areaStop(); areaStop = null; }
+    areaRaw = {};
+    if (!f) { mergeRaw(); cloudRefresh(); return; }
+    areaStop = CLOUD.watchArea(f, c, function (list) {
+      var by = {}; each(list, function (x) { by[x._id] = x; }); areaRaw = by; mergeRaw(); cloudRefresh();
+    }, function () { /* index not built yet: the newest-200 list still works */ });
+  }
+  function nationwideMap() { if (map) { map.fitBounds(REGIONS.ph, { padding: [10, 10] }); } }
+  function locZoom() {
+    var L, lv, items, pts = [];
+    if (!map) { return; }
+    if (!locOn()) { nationwideMap(); return; }
+    L = PLACES.get(); lv = L.brgy ? 0 : (L.city ? 1 : (L.prov ? 2 : 3));
+    if (typeof L.lat === 'number') { map.setView([L.lat, L.lng], LOC_ZOOM[lv]); return; }
+    items = filtered(); each(items, function (r) { pts.push([r.lat, r.lng]); });
+    if (pts.length) { map.fitBounds(pts, { padding: [30, 30], maxZoom: LOC_ZOOM[lv] }); } else { nationwideMap(); }
+  }
+  function orgCovers() {
+    var L = PLACES.get(), codes, i, j, o, keys = ['regCodes', 'provCodes', 'cityCodes', 'brgyCodes'];
+    if (!L || !orgCov) { return 'unknown'; }
+    codes = PLACES.codes(L);
+    for (i = 0; i < orgCov.length; i++) { o = orgCov[i]; for (j = 0; j < keys.length; j++) { if (o[keys[j]] && o[keys[j]].length && o[keys[j]].some(function (c) { return codes.indexOf(c) > -1; })) { return 'yes'; } } }
+    return 'no';
+  }
+  function renderLocBar() {
+    var b = $('locBar'), L, h, on, lab;
+    if (!b) { return; }
+    L = PLACES.get(); on = locOn(); lab = PLACES.label(L);
+    if (!L) { h = '<span class="lt">Showing reports from all over the Philippines.</span><button type="button" class="btn sm primary" data-locopen="1">Choose your area</button>'; }
+    else if (on) {
+      h = '<span class="lt">' + icon('pin', 14) + ' <span>Showing <b>' + esc(lab) + '</b></span></span>'
+        + '<label class="lsc"><span class="vh">Area size</span><select id="locScope" aria-label="Area size"><option value="city"' + (PLACES.scope() === 'city' ? ' selected' : '') + '>This city only</option><option value="prov"' + (PLACES.scope() === 'prov' ? ' selected' : '') + '>+ province</option><option value="reg"' + (PLACES.scope() === 'reg' ? ' selected' : '') + '>+ region</option></select></label>'
+        + '<button type="button" class="btn sm" data-locopen="1">Change</button><button type="button" class="btn sm" data-locnat="1">Nationwide</button>';
+      if (orgCovers() === 'no') { h += '<span class="lnote">No partner office covers this area yet. Reports here are public and unverified.</span>'; }
+    } else { h = '<span class="lt">' + icon('pin', 14) + ' <span><b>Nationwide</b> view</span></span><button type="button" class="btn sm primary" data-locon="1">Back to ' + esc(lab) + '</button><button type="button" class="btn sm" data-locopen="1">Change area</button>'; }
+    b.innerHTML = h;
+    $('btnLoc').setAttribute('aria-label', L ? 'Area: ' + lab + (on ? '' : ' (nationwide view)') : 'Choose your area');
+    $('btnLoc').innerHTML = icon('pin', 15) + '<span class="lbl"> ' + (L && on ? esc((L.city || L.prov || L.reg).n.length > 16 ? (L.city || L.prov || L.reg).n.substring(0, 15) + '…' : (L.city || L.prov || L.reg).n) : 'Area') + '</span>';
+    updAreaHint();
+  }
+  function updAreaHint() {
+    var el = $('rArea'), L = window.PLACES && PLACES.get(), far = false;
+    if (!el) { return; }
+    if (!L) { el.innerHTML = 'No area chosen. <button type="button" class="link" data-locopen="1">Choose your area</button> so people near you see this report.'; return; }
+    if (typeof L.lat === 'number' && pendLat != null && distKm(L.lat, L.lng, pendLat, pendLng) > 150) { far = true; }
+    el.innerHTML = far ? 'The pin is far from <b>' + esc(PLACES.label(L)) + '</b>, so no area tag is added. <button type="button" class="link" data-locopen="1">Change area</button>' : 'Area tag: <b>' + esc(PLACES.label(L)) + '</b>. <button type="button" class="link" data-locopen="1">Change</button>';
+  }
+  function stampArea(it) {
+    var L = window.PLACES && PLACES.get();
+    if (!L) { return; }
+    if (typeof L.lat === 'number' && distKm(L.lat, L.lng, it.lat, it.lng) > 150) { return; }
+    if (L.reg) { it.regCode = L.reg.c; } if (L.prov) { it.provCode = L.prov.c; } if (L.city) { it.cityCode = L.city.c; } if (L.brgy) { it.brgyCode = L.brgy.c; }
+  }
+  /* The "Choose your area" dialog */
+  var locDlg = null, locPick = null, locLast = null;
+  function closeLoc() { if (locDlg) { locDlg.hidden = true; document.removeEventListener('keydown', locKey, true); if (locLast && locLast.focus) { try { locLast.focus(); } catch (e) {} } } }
+  function locKey(e) {
+    if (e.key === 'Escape' || e.keyCode === 27) { e.stopPropagation(); closeLoc(); return; }
+    if (e.key === 'Tab' || e.keyCode === 9) {
+      var f = locDlg.querySelectorAll('select:not([disabled]),button:not([disabled])'), a = f[0], z = f[f.length - 1];
+      if (!f.length) { return; }
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+    }
+  }
+  function openLoc() {
+    if (!window.PLACES) { return; }
+    locLast = document.activeElement;
+    if (!locDlg) {
+      locDlg = document.createElement('div'); locDlg.className = 'pmodal'; locDlg.id = 'locModal'; locDlg.hidden = true;
+      locDlg.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="lcH"><button type="button" class="btn x" id="lcX" aria-label="Close">&times;</button>'
+        + '<h2 id="lcH">Choose your area</h2><p>Reports and announcements for your area come first. No account is needed. The choice stays on this device.</p>'
+        + '<div class="pkgrid" id="lcPick"></div><div class="hint" id="lcMsg" role="status" aria-live="polite"></div>'
+        + '<div class="acts"><button type="button" class="btn primary" id="lcSave">Save area</button><button type="button" class="btn" id="lcNat">Show nationwide</button></div></div>';
+      document.body.appendChild(locDlg);
+      locPick = PLACES.picker($('lcPick'), { prefix: 'lc', barangay: true }, function () { $('lcMsg').textContent = ''; });
+      $('lcX').addEventListener('click', closeLoc);
+      locDlg.addEventListener('mousedown', function (e) { if (e.target === locDlg) { closeLoc(); } });
+      $('lcNat').addEventListener('click', function () { PLACES.setOn(false); closeLoc(); });
+      $('lcSave').addEventListener('click', function () {
+        var v = locPick.value(), keep = PLACES.get();
+        if (!v.reg || (!v.city && !v.prov)) { $('lcMsg').textContent = 'Choose at least a region and a province or city.'; return; }
+        if (keep && keep.lat != null && keep.city && v.city && keep.city.c === v.city.c) { v.lat = keep.lat; v.lng = keep.lng; }
+        if (!PLACES.set(v)) { $('lcMsg').textContent = 'Could not save this area.'; return; }
+        closeLoc(); toast('Area saved: ' + PLACES.label(PLACES.get()));
+        if (typeof PLACES.get().lat !== 'number') { PLACES.locate(PLACES.get(), function (pt) { var cur = PLACES.get(); if (pt && cur && PLACES.label(cur) === PLACES.label(v)) { cur.lat = pt.lat; cur.lng = pt.lng; PLACES.set(cur); } }); }
+      });
+    }
+    locDlg.hidden = false; locPick.set(PLACES.get());
+    document.addEventListener('keydown', locKey, true);
+    $('lcX').focus();
+  }
+  function onLocChange() {
+    renderLocBar(); syncArea(); refresh(); locZoom();
+  }
+  function initLoc() {
+    if (!window.PLACES) { return; }
+    $('btnLoc').addEventListener('click', openLoc);
+    document.addEventListener('change', function (e) { if (e.target && e.target.id === 'locScope') { PLACES.setScope(e.target.value); } });
+    PLACES.onChange(onLocChange);
+    renderLocBar(); syncArea();
+    if (locOn() && !window.location.hash) { locZoom(); }
+    if (cloudOn() && CLOUD.loadOrgs) { CLOUD.loadOrgs(function (l) { orgCov = l; renderLocBar(); }); }
+    // a saved area with no map centre yet (geocoder was down): try again quietly
+    if (PLACES.get() && typeof PLACES.get().lat !== 'number') { PLACES.locate(PLACES.get(), function (pt) { var cur = PLACES.get(); if (pt && cur) { cur.lat = pt.lat; cur.lng = pt.lng; PLACES.set(cur); } }); }
+  }
   function pool() {
     var a = [];
     if (settings.demo) { a = a.concat(demo); }
@@ -182,6 +323,7 @@
     if (!o.noTrust && !trustOK(r)) { return false; }
     if (!o.noStatus && statusF !== 'all' && (statusF === 'resolved') !== !!r.resolved) { return false; }
     if (!o.noDate && !inRange(r)) { return false; }
+    if (!o.noLoc && !locOK(r)) { return false; }
     if (!o.noSev && sevF >= 0 && r.sev !== sevF) { return false; }
     if (query) {
       q = (r.title + ' ' + r.place + ' ' + r.srcLabel + ' ' + r.desc).toLowerCase();
@@ -192,7 +334,7 @@
   }
   function filtered() {
     var out = pool().filter(function (r) { return match(r); });
-    out.sort(function (a, b) { if (sortBy === 'near' && userPos) { return distKm(userPos.lat, userPos.lng, a.lat, a.lng) - distKm(userPos.lat, userPos.lng, b.lat, b.lng); } if (sortBy === 'severity' && b.sev !== a.sev) { return b.sev - a.sev; } return b.time - a.time; });
+    out.sort(function (a, b) { if (sortBy === 'latest' && locOn()) { var ra = locRank(a), rb = locRank(b); if (ra !== rb) { return ra - rb; } } if (sortBy === 'near' && userPos) { return distKm(userPos.lat, userPos.lng, a.lat, a.lng) - distKm(userPos.lat, userPos.lng, b.lat, b.lng); } if (sortBy === 'severity' && b.sev !== a.sev) { return b.sev - a.sev; } return b.time - a.time; });
     return out;
   }
   /* ---------- grouping of similar community reports ---------- */
@@ -282,7 +424,7 @@
       if (settings.showPhotos) { h += '<img class="thumb" alt="Photo for ' + esc(r.title) + '" src="' + (photosOf(r)[0] || samplePhoto()) + '">'; }
       h += '</div>';
     });
-    if (!items.length) { h = '<div class="empty">No records match these filters.<br>Widen the date range or clear the filters.</div>'; }
+    if (!items.length) { h = locOn() ? '<div class="empty">No reports for ' + esc(PLACES.label()) + ' match these filters.<br>Reports from other areas are hidden while the area filter is on.<br><button type="button" class="btn sm" data-locnat="1" style="margin-top:10px">Show nationwide</button></div>' : '<div class="empty">No records match these filters.<br>Widen the date range or clear the filters.</div>'; }
     $('rows').innerHTML = h;
     var ov = 0, un = 0;
     each(pool(), function (r) { if (match(r, { noTrust: true })) { if (r.trust === 'unverified') { un++; } else { ov++; } } });
@@ -292,6 +434,7 @@
     if (hidden > 0 && range !== 'all') { note += ' \u00b7 ' + hidden + ' older hidden <button data-showall="1">Show all time</button>'; }
     var resHidden = statusF === 'active' ? pool().filter(function (r) { return r.resolved && match(r, { noStatus: true }); }).length : 0;
     if (resHidden > 0) { note += ' \u00b7 ' + resHidden + ' resolved hidden <button data-showres="1">Show</button>'; }
+    if (locOn()) { var oh = pool().filter(function (r) { return match(r, { noLoc: true }) && !locOK(r); }).length; if (oh > 0) { note += ' \u00b7 ' + oh + ' in other areas hidden <button data-locnat="1">Show nationwide</button>'; } }
     if (quakeState === 'unavailable') { note += ' \u00b7 Live earthquakes unavailable'; }
     else if (quakeState === 'stale') { note += ' \u00b7 Showing saved earthquakes'; }
     else if (quakeState === 'ok' && settings.liveQuakes) { note += ' \u00b7 Earthquakes live \u00b7 ' + quakeStamp.toLowerCase(); }
@@ -1087,7 +1230,7 @@
   }
   function setPending(lat, lng) {
     pendLat = lat; pendLng = lng;
-    $('rLoc').textContent = 'Location set: ' + lat.toFixed(5) + ', ' + lng.toFixed(5);
+    $('rLoc').textContent = 'Location set: ' + lat.toFixed(5) + ', ' + lng.toFixed(5); updAreaHint();
     if (map) { if (pickMark) { map.removeLayer(pickMark); } pickMark = L.circleMarker([lat, lng], { radius: 9, color: '#4c8dff', fillOpacity: 0.4 }).addTo(map); }
   }
   function clearChecks(c) { each(document.getElementsByClassName(c), function (x) { x.checked = false; }); }
@@ -1194,6 +1337,7 @@
   }
   /* ---------- shared reports (Firebase) ---------- */
   function cloudOn() { return !!(window.CLOUD && window.CLOUD.on); }
+  function codeOf(v) { return typeof v === 'string' && /^[0-9]{9,10}$/.test(v) ? v : ''; }
   function cloudBuild() {
     var out = [];
     each(cloudRaw, function (d) {
@@ -1204,7 +1348,7 @@
       if (d.obs && d.obs.length) { each(d.obs.slice(0, 12), function (o) { if (o && o.k != null) { obs.push([String(o.k).substring(0, 80), String(o.v).substring(0, 200)]); } }); }
       if (d.imgs && d.imgs.length) { each(d.imgs.slice(0, MAXPHOTOS), function (s) { if (typeof s === 'string' && s.length < 230000 && jpegRe.test(s)) { imgs.push(s); } }); }
       if (!imgs.length && typeof d.img === 'string' && d.img.length < 400000 && jpegRe.test(d.img)) { imgs.push(d.img); }
-      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!((CLOUD.admin && CLOUD.can(d.type)) || (CLOUD.uid && d.uid === CLOUD.uid && !CLOUD.media)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : (typeof d.media === 'string' && d.media ? 'Media report' : 'Community report'), pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), author: typeof d.author === 'string' ? d.author.substring(0, 40) : '', media: typeof d.media === 'string' ? d.media.substring(0, 60) : '', desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0 });
+      out.push({ id: 'c' + d._id, cid: d._id, cloud: true, mine: !!(CLOUD.uid && d.uid === CLOUD.uid), own: !!((CLOUD.admin && CLOUD.can(d.type)) || (CLOUD.uid && d.uid === CLOUD.uid && !CLOUD.media)), type: d.type, sev: d.sev, trust: d.verified === true ? 'verified' : 'unverified', srcLabel: d.verified === true ? 'Community report, verified by admin' : (typeof d.media === 'string' && d.media ? 'Media report' : 'Community report'), pending: d._pending === true, time: d.time, title: String(d.title || '').substring(0, 200), author: typeof d.author === 'string' ? d.author.substring(0, 40) : '', media: typeof d.media === 'string' ? d.media.substring(0, 60) : '', desc: String(d.desc || '').substring(0, 2000), place: String(d.place || '').substring(0, 200), lat: d.lat, lng: d.lng, img: imgs[0] || '', imgs: imgs, obsTitle: 'Observations', obs: obs, resolved: d.resolved === true, resAt: typeof d.resAt === 'number' ? d.resAt : 0, regCode: codeOf(d.regCode), provCode: codeOf(d.provCode), cityCode: codeOf(d.cityCode), brgyCode: codeOf(d.brgyCode) });
     });
     cloudItems = out;
   }
@@ -1272,7 +1416,7 @@
   function onCloudData(list, added) {
     var first = firstCloud;
     firstCloud = false;
-    cloudRaw = list;
+    globalRaw = list; mergeRaw();
     cloudRefresh();
     if (!first && added && added.length) { cloudAlerts(added); }
     tryHash();
@@ -1336,6 +1480,7 @@
     if ($('rEvac').value) { obs.push(['Evacuation', $('rEvac').value]); }
     if (photoBusy > 0) { alert('Your photos are still being prepared. Please try again in a moment.'); return; }
     it = { id: 'u' + Date.now(), own: true, type: t, sev: parseInt($('rSev').value, 10), trust: 'unverified', srcLabel: 'Community report', time: Date.now(), title: title, desc: $('rDesc').value || 'No further details given.', place: $('rPlace').value || (pendLat.toFixed(4) + ', ' + pendLng.toFixed(4)), lat: pendLat, lng: pendLng, img: pendImgs[0] || '', imgs: pendImgs.slice(0, MAXPHOTOS), obsTitle: 'Observations', obs: obs };
+    stampArea(it);
     it.author = $('rAuthor').value.replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/^\s+|\s+$/g, '').substring(0, 40);
     if (cloudOn() && CLOUD.uid) {
       if (Date.now() - lastPostAt < 120000) { alert('Please wait ' + Math.ceil((120000 - (Date.now() - lastPostAt)) / 1000) + ' seconds before posting another report.'); return; }
@@ -1545,10 +1690,11 @@
       r.push(mkRow('Accounts', '', 'sign in', '<div class="empty">Accounts are not available because the shared connection is off.</div>', false));
     } else if (CLOUD.email) {
       r.push(mkRow('Signed in', 'Your account', 'email sign out logout', '<div class="trow"><div><b>' + esc(CLOUD.email) + '</b><small>' + acctRoleText() + '</small></div><button class="btn sm" data-adminout="1">Sign out</button></div>', false));
-      r.push(mkRow('Change password', 'Use at least 8 characters.', 'password security', '<div class="svpw"><label class="l" for="cpOld">Current password</label><input type="password" id="cpOld" autocomplete="current-password"><label class="l" for="cpNew">New password</label><input type="password" id="cpNew" autocomplete="new-password" minlength="8"><label class="l" for="cpNew2">Repeat new password</label><input type="password" id="cpNew2" autocomplete="new-password" minlength="8"><div class="acts"><button class="btn primary" data-chgpw="1" id="cpBtn">Change password</button></div><div class="cpmsg" id="cpMsg" role="status" aria-live="polite"></div></div>', true));
+      r.push(mkRow('Change password', 'Use at least 8 characters.', 'password security', '<form class="svpw" id="cpForm" novalidate><input type="text" name="username" autocomplete="username" value="' + esc(CLOUD.email) + '" readonly hidden tabindex="-1" aria-hidden="true"><label class="l" for="cpOld">Current password</label><input type="password" id="cpOld" autocomplete="current-password"><label class="l" for="cpNew">New password</label><input type="password" id="cpNew" autocomplete="new-password" minlength="8"><label class="l" for="cpNew2">Repeat new password</label><input type="password" id="cpNew2" autocomplete="new-password" minlength="8"><div class="acts"><button class="btn primary" type="submit" data-chgpw="1" id="cpBtn">Change password</button></div><div class="cpmsg" id="cpMsg" role="status" aria-live="polite"></div></form>', true));
     } else {
-      r.push(mkRow('Sign in', 'For moderators, agencies and media accounts created by the DATAsaster team. Everyone else is signed in automatically and needs nothing here.', 'login admin agency media', '<div class="svpw"><label class="l" for="adEmail">Email</label><input type="text" id="adEmail" autocomplete="username"><label class="l" for="adPw">Password</label><input type="password" id="adPw" autocomplete="current-password"><div class="acts"><button class="btn primary" data-adminlogin="1">Sign in</button></div></div>', true));
+      r.push(mkRow('Sign in', 'For moderators, agencies and media accounts created by the DATAsaster team. Everyone else is signed in automatically and needs nothing here.', 'login admin agency media', '<form class="svpw" id="adForm" novalidate><label class="l" for="adEmail">Email</label><input type="email" id="adEmail" name="email" autocomplete="username" autocapitalize="off" spellcheck="false" inputmode="email"><label class="l" for="adPw">Password</label><input type="password" id="adPw" autocomplete="current-password"><div class="acts"><button class="btn primary" type="submit" data-adminlogin="1">Sign in</button></div></form>', true));
     }
+    r.push(linkRow('Partner organization console', 'For approved LGUs, barangays, HOAs and response teams.', 'console.html', 'lgu console partner organization'));
     P.push({ id: 'account', label: 'Account', ic: 'user', desc: 'Sign in, sign out and change your password.', rows: r, reset: false });
     /* Admin tools */
     if (CLOUD.admin) {
@@ -1585,7 +1731,8 @@
     }
     r.push(linkRow('Privacy Policy', 'What the app stores and who receives data.', 'privacy.html', 'privacy'));
     r.push(linkRow('Terms and Conditions', 'The rules for using DATAsaster.', 'terms.html', 'terms'));
-    r.push(linkRow('Partner with us', 'How agencies and media outlets can take part.', 'partner.html', 'agency media join'));
+    r.push(linkRow('Partner with us', 'How LGUs, agencies and media outlets can take part.', 'partner.html', 'lgu agency media join'));
+    r.push(linkRow('Apply for partnership', 'Cities, municipalities, barangays, HOAs and response teams can apply.', 'apply.html', 'lgu apply partnership barangay hoa')); 
     r.push(mkRow('Open-source licenses', 'Libraries and data this app builds on.', 'leaflet firebase osm license', '<ul class="svlic"><li><b>Leaflet</b> 1.9.4, BSD 2-Clause License</li><li><b>Firebase JavaScript SDK</b> 10.14.1, Apache License 2.0</li><li>Map data \u00a9 OpenStreetMap contributors; tiles by Esri and CARTO</li><li>Weather and hazard data: RainViewer, Open-Meteo, NASA EONET, USGS, EMSC</li></ul>', true));
     P.push({ id: 'about', label: 'About', ic: 'info', desc: 'Version, release notes, help and legal information.', rows: r, reset: false });
     return P;
@@ -1611,7 +1758,7 @@
   }
   function renderSettings() {
     var o = svBuild(), h, keepY = window.pageYOffset || 0;
-    h = '<div class="sv2"><div class="sv2-top"><div><div class="m">Preferences</div><h1>Settings</h1></div><div class="sv2-tools"><div class="search"><span class="ics">' + icon('search', 15) + '</span><input type="search" id="svSearch" placeholder="Search settings" value="' + esc(svQuery) + '" aria-label="Search settings" autocomplete="off"></div><span class="svsave" id="svSave" aria-live="polite">Changes save on this device</span><button class="btn" data-view="dash">' + icon('back', 15) + ' Back</button></div></div>';
+    h = '<div class="sv2"><div class="sv2-top"><div><div class="m">Preferences</div><h1>Settings</h1></div><div class="sv2-tools"><div class="search"><span class="ics">' + icon('search', 15) + '</span><input type="text" id="svSearch" name="settings-filter" placeholder="Search settings" value="' + esc(svQuery) + '" aria-label="Search settings" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other"><button type="button" class="svclr" id="svClr" data-svclear="1" aria-label="Clear search"' + (svQuery ? '' : ' hidden') + '>' + icon('x', 13) + '</button></div><span class="svsave" id="svSave" aria-live="polite">Changes save on this device</span><button class="btn" data-view="dash">' + icon('back', 15) + ' Back</button></div></div>';
     h += '<div class="sv2-body"><nav class="svnav" id="svNav" role="tablist" aria-label="Settings sections">' + o.nav + '</nav><div class="svmain" id="svMain">' + o.main + '</div></div></div>';
     $('viewSettings').innerHTML = h;
     window.scrollTo(0, keepY);
@@ -1735,10 +1882,12 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh', 'data-infotab', 'data-svp', 'data-svreset', 'data-chgpw', 'data-goto', 'data-openreport', 'data-account', 'data-ftf'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh', 'data-infotab', 'data-svp', 'data-svreset', 'data-chgpw', 'data-goto', 'data-openreport', 'data-account', 'data-ftf', 'data-svclear', 'data-locopen', 'data-locnat', 'data-locon'];
   function findAction(el) {
     var i;
-    while (el && el !== document) {
+    /* Stop at <body>: it carries data-view / data-pane for the CSS, and those names are also action names. Without this stop, every click
+       inside Settings counted as 'show Settings', which re-drew the page, dropped focus and erased what was being typed. */
+    while (el && el !== document && el !== document.body) {
       if (el.getAttribute) { for (i = 0; i < ACTIONS.length; i++) { if (el.hasAttribute(ACTIONS[i])) { return [ACTIONS[i], el.getAttribute(ACTIONS[i])]; } } }
       el = el.parentNode;
     }
@@ -1748,6 +1897,7 @@
     var a = findAction(e.target), n, v, parts;
     if (!a) { if (panelOpen && !$('lpanel').contains(e.target) && e.target !== $('btnLayers') && !$('btnLayers').contains(e.target)) { panelOpen = false; $('lpanel').hidden = true; } return; }
     n = a[0]; v = a[1];
+    if ((n === 'data-adminlogin' || n === 'data-chgpw') && e.preventDefault) { e.preventDefault(); }
     if (n === 'data-adminlogin') {
       var em = $('adEmail').value.replace(/^\s+|\s+$/g, ''), pw = $('adPw').value;
       if (!em || !pw) { toast('Enter email and password'); return; }
@@ -1876,6 +2026,10 @@
     }
     if (n === 'data-clearmine') { if (CLOUD.media) { return; } if (window.confirm('Delete all your reports? This cannot be undone.')) { each(myCloud(), function (x) { CLOUD.remove(x.cid, cloudFail); }); userItems = []; lsSet('datasaster_reports', userItems); renderSettings(); refresh(); } return; }
     if (n === 'data-reset') { if (window.confirm('Reset all settings to defaults?')) { settings = clone(DEFAULTS); saveSettings(); applyTheme(); setTiles(); renderBase(); fitRegion(); applyLayers(); renderSettings(); refresh(); renderAdvList(); loadQuakes(); loadNews(); } return; }
+    if (n === 'data-locopen') { openLoc(); return; }
+    if (n === 'data-locnat') { PLACES.setOn(false); return; }
+    if (n === 'data-locon') { PLACES.setOn(true); return; }
+    if (n === 'data-svclear') { svQuery = ''; var si = $('svSearch'); if (si) { si.value = ''; si.focus(); } svUpdate(false); var cb = $('svClr'); if (cb) { cb.hidden = true; } return; }
     if (n === 'data-svp') { svPanel = v; svQuery = ''; renderSettings(); return; }
     if (n === 'data-svreset') { resetSection(v); return; }
     if (n === 'data-chgpw') {
@@ -1965,7 +2119,20 @@
     $('day').addEventListener('change', function () { dayVal = this.value; refresh(); });
     $('btnSet').addEventListener('click', function () { showView(viewing === 'settings' ? 'dash' : 'settings'); });
     $('btnRep').addEventListener('click', function () { openReport(false); });
-    document.addEventListener('input', function (e) { if (e.target && e.target.id === 'svSearch') { svQuery = e.target.value; svUpdate(false); } });
+    document.addEventListener('input', function (e) {
+      if (e.target && e.target.id === 'svSearch') {
+        // the browser's saved-email autofill fills this box without the person typing: undo it
+        if (document.activeElement !== e.target) { e.target.value = svQuery; return; }
+        svQuery = e.target.value; svUpdate(false);
+        var c = $('svClr'); if (c) { c.hidden = !svQuery; }
+      }
+    });
+    document.addEventListener('submit', function (e) {
+      var f = e.target, b;
+      if (!f || (f.id !== 'adForm' && f.id !== 'cpForm')) { return; }
+      e.preventDefault();
+      b = f.querySelector('[data-adminlogin],[data-chgpw]'); if (b) { b.click(); }
+    });
     $('fToggle').addEventListener('click', function () { var fh = $('fToggle').parentNode.parentNode, op = fh.className.indexOf(' open') < 0; fh.className = op ? fh.className + ' open' : fh.className.replace(' open', ''); $('fToggle').setAttribute('aria-expanded', op ? 'true' : 'false'); });
     $('btnLayers').addEventListener('click', function () { panelOpen = !panelOpen; $('lpanel').hidden = !panelOpen; if (panelOpen) { renderPanel(); } });
     $('newsSrc').addEventListener('change', function () { var y = window.pageYOffset || 0; newsF = this.value; renderNews(true); window.scrollTo(0, y); });
@@ -1997,7 +2164,7 @@
     initApp();
     pendingHash = /^#r=[A-Za-z0-9_-]{1,60}$/.test(location.hash || '') ? location.hash.substring(3) : '';
     if (settings.alerts && cloudOn()) { getPos(function () { refresh(); }); setInterval(function () { getPos(function () {}); }, 600000); }
-    initCloud();
+    initCloud(); initLoc();
     tryHash();
     loadQuakes(); loadNews();
   }

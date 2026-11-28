@@ -36,6 +36,22 @@
     }, function (er) { onErr(er); });
   };
 
+  /* Phase 4: also listen to the newest reports of ONE area (field = cityCode, provCode or regCode), so an area is not missed when the
+     whole country is busy. Needs the composite index in firestore.indexes.json (a missing index only logs a link in the console). */
+  C.watchArea = function (field, code, onData, onErr) {
+    if (!/^(regCode|provCode|cityCode|brgyCode)$/.test(field) || !/^[0-9]{9,10}$/.test(code)) { return function () {}; }
+    return db.collection('reports').where(field, '==', code).orderBy('time', 'desc').limit(100).onSnapshot(function (snap) {
+      var list = []; snap.forEach(function (d) { var x = d.data(); x._id = d.id; x._pending = d.metadata.hasPendingWrites; list.push(x); }); onData(list);
+    }, function (er) { if (onErr) { onErr(er); } });
+  };
+
+  /* Public list of active partner organizations and their coverage codes (used only to say whether an area has a partner office). */
+  C.loadOrgs = function (cb) {
+    db.collection('organizations').where('status', '==', 'active').limit(200).get().then(function (snap) {
+      var l = []; snap.forEach(function (d) { var x = d.data(); l.push({ regCodes: x.regCodes || [], provCodes: x.provCodes || [], cityCodes: x.cityCodes || [], brgyCodes: x.brgyCodes || [] }); }); cb(l);
+    }, function () {});
+  };
+
   /* Role comes from the admins/<uid> document. role "agency" = limited agency account (agency name + allowed hazard types).
      Any other document (including the old role "admin", or no role) = owner, same powers as before. */
   C.setRole = function (data) {
@@ -68,10 +84,13 @@
   C.add = function (it, fail) {
     var ref = db.collection('reports').doc(), batch = db.batch(), obs = [], i;
     for (i = 0; i < it.obs.length; i++) { obs.push({ k: String(it.obs[i][0]), v: String(it.obs[i][1]) }); }
-    batch.set(ref, {
+    var doc = {
       uid: C.uid, type: it.type, sev: it.sev, title: it.title, desc: it.desc, place: it.place, author: String(it.author || '').substring(0, 40), media: C.media ? C.outlet : '',
       lat: it.lat, lng: it.lng, img: '', imgs: (it.imgs || []).slice(0, 3), obs: obs, time: it.time, resolved: false, resAt: 0, verified: false
-    });
+    };
+    // Phase 4: official PSGC codes of the area the poster chose (all optional; the server only checks their format)
+    ['regCode', 'provCode', 'cityCode', 'brgyCode'].forEach(function (k) { if (typeof it[k] === 'string' && /^[0-9]{9,10}$/.test(it[k])) { doc[k] = it[k]; } });
+    batch.set(ref, doc);
     batch.set(db.collection('users').doc(C.uid), { lastPost: firebase.firestore.FieldValue.serverTimestamp() });
     batch.commit().catch(function (er) { fail(er); });
     return ref.id;
