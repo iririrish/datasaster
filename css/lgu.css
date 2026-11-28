@@ -153,11 +153,21 @@
 
 /* Phase 4: area filter bar, area dialog, picker */
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.locbar{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 16px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:13px}
-.locbar .lt{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:1 1 200px;overflow:hidden;text-overflow:ellipsis}
-.locbar .lt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.locbar .lsc select{font-size:12px;padding:4px 22px 4px 8px}
-.locbar .lnote{flex:1 1 100%;color:var(--muted);font-size:12px}
+/* "Showing ..." banner: one line; tapping it opens the area dialog */
+.locbar{flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:13px;min-height:36px}
+.locbar .lt{display:flex;align-items:center;gap:6px;min-width:0;flex:1 1 auto;background:none;border:0;padding:8px 0;color:var(--text);text-align:left;font:inherit;font-size:13px;cursor:pointer}
+.locbar .lt>.ic{color:var(--accent)}
+.locbar .lt>span:first-of-type{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.locbar .lsz{flex:none;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.locbar .lgo{flex:none;display:inline-flex;align-items:center;gap:2px;margin-left:auto;color:var(--accent);font-size:12px;font-weight:600;white-space:nowrap}
+.locbar .lt:hover .lgo{text-decoration:underline}
+.locbar .lback{flex:none;background:none;border:0;padding:8px 0;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.locbar .lnote{flex:0 1 auto;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* area size choice (area dialog and Settings) */
+.scopes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.scb{min-height:40px;padding:6px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2);color:var(--muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.scb:hover{border-color:var(--accent);color:var(--text)}
+.scb.on{background:var(--accentbg);border-color:var(--accentbg);color:#fff}
 .pkgrid{display:grid;gap:10px;margin:4px 0 8px}
 .pkf .l{display:block;font-size:13px;font-weight:600;margin:0 0 4px}
 .pkf .lopt{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
@@ -165,9 +175,8 @@
 .pkerr{font-size:13px;color:#f87171;margin-top:4px}
 .pmodal .hint{font-size:12px;color:#f87171;min-height:18px;margin-bottom:6px}
 @media(max-width:900px){
-  .locbar{padding:6px 12px;gap:6px}
-  .locbar .lt{flex:1 1 100%}
-  .locbar .lt span{white-space:normal;overflow:visible}
+  .locbar{padding:0 12px;gap:8px;min-height:34px}
+  .locbar .lt{padding:7px 0}
   .locbar .lnote{display:none}
-  .locbar .btn,.locbar select{flex:none;white-space:nowrap}
 }
+@media(max-width:380px){.locbar .lsz{display:none}}

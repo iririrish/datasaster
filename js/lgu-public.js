@@ -17,10 +17,6 @@
     function srt(x, y) { return (x.type === 'evacuation' ? 0 : 1) - (y.type === 'evacuation' ? 0 : 1) || y.startsAt - x.startsAt; }
     loc.sort(srt); nat.sort(srt);
     return loc.concat(on ? nat.slice(0, 3) : nat);
-  function active() {
-    var n = Date.now();
-    return list.filter(function (a) { return a.status === 'published' && a.startsAt <= n && a.endsAt > n; })
-      .sort(function (a, b) { return (a.type === 'evacuation' ? 0 : 1) - (b.type === 'evacuation' ? 0 : 1) || b.startsAt - a.startsAt; });
   }
   function render() {
     var a = active(), box = $('annList'), bar = $('annBar');
@@ -28,7 +24,6 @@
       box.innerHTML = a.map(function (x) {
         var ev = x.type === 'evacuation';
         return '<article class="ann' + (ev ? '' : ' gen') + '"><div class="atags"><span class="atag' + (ev ? ' evac' : '') + '">' + (ev ? 'EVACUATION' : 'GENERAL') + '</span><span class="atag">' + (isLocal(x) ? 'YOUR AREA' : 'NATIONWIDE') + '</span><span class="atag">PARTNER</span><b>' + esc(x.orgName) + '</b></div><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p><small>'
-        return '<article class="ann' + (ev ? '' : ' gen') + '"><div class="atags"><span class="atag' + (ev ? ' evac' : '') + '">' + (ev ? 'EVACUATION' : 'GENERAL') + '</span><span class="atag">PARTNER LGU</span><b>' + esc(x.orgName) + '</b></div><h3>' + esc(x.title) + '</h3><p>' + esc(x.desc) + '</p><small>'
           + (x.areas ? 'Areas: ' + esc(x.areas) + ' &middot; ' : '') + 'Until ' + fmt(x.endsAt) + '. Posted by the organization, not by DATAsaster.</small></article>';
       }).join('');
     }
@@ -74,7 +69,7 @@
     }
   }
   function openPm() {
-    if (shownToday() || $('noticeBar') || document.body.getAttribute('data-view') === 'settings' || document.body.getAttribute('data-view') === 'review') { return; }
+    if (shownToday() || $('noticeBar') || ($('tourModal') && !$('tourModal').hidden) || ($('locModal') && !$('locModal').hidden) || document.body.getAttribute('data-view') === 'settings' || document.body.getAttribute('data-view') === 'review') { return; }
     if (!pm) {
       pm = document.createElement('div'); pm.className = 'pmodal'; pm.id = 'partnerModal'; pm.hidden = true;
       pm.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="pmH" aria-describedby="pmD">'
