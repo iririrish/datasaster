@@ -55,6 +55,18 @@
 .lgufoot{padding:24px 16px 60px;text-align:center;font-size:12px;color:var(--muted)}
 .lgufoot a{color:var(--accent)}
 
+/* partnership popup (shown in the News section, once a day) */
+.pmodal{position:fixed;inset:0;z-index:2100;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto}
+.pmodal[hidden]{display:none}
+.pmodal .box{position:relative;width:100%;max-width:440px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.45);max-height:calc(100dvh - 32px);overflow-y:auto}
+.pmodal .x{position:absolute;top:8px;right:8px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;padding:0}
+.pmodal small.k{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px;padding-right:36px}
+.pmodal h2{font-size:19px;margin:0 0 6px;padding-right:30px}
+.pmodal p{margin:0 0 14px;color:var(--muted);font-size:14px;line-height:1.5}
+.pmodal .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pmodal .acts .btn{text-decoration:none;color:var(--text);flex:1;text-align:center;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.pmodal .acts .btn.primary{color:#fff}
+@media(max-width:900px){.pmodal{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
 /* home page banner */
 .partnerband{max-width:1400px;margin:24px auto 0;padding:0 16px}
 .partnerband .in{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
@@ -130,3 +142,32 @@
 .annlist .ann .atags{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px}
 .annlist .ann .atag{font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:4px;background:var(--panel);border:1px solid var(--line)}
 .annlist .ann .atag.evac{background:rgba(251,146,60,.2);color:#fb923c;border-color:transparent}
+
+.annbar{flex:none}
+@media(max-width:900px){
+  .annbar{padding:6px 12px;font-size:12px;flex-wrap:nowrap;gap:8px;overflow:hidden}
+  .annbar b{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .annbar .m,.annbar .sp{display:none}
+  .annbar button,.annbar .atag{flex:none;white-space:nowrap}
+}
+
+/* Phase 4: area filter bar, area dialog, picker */
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.locbar{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 16px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:13px}
+.locbar .lt{display:inline-flex;align-items:center;gap:6px;min-width:0;flex:1 1 200px;overflow:hidden;text-overflow:ellipsis}
+.locbar .lt span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.locbar .lsc select{font-size:12px;padding:4px 22px 4px 8px}
+.locbar .lnote{flex:1 1 100%;color:var(--muted);font-size:12px}
+.pkgrid{display:grid;gap:10px;margin:4px 0 8px}
+.pkf .l{display:block;font-size:13px;font-weight:600;margin:0 0 4px}
+.pkf .lopt{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.pkf select{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:9px 10px;color:var(--text)}
+.pkerr{font-size:13px;color:#f87171;margin-top:4px}
+.pmodal .hint{font-size:12px;color:#f87171;min-height:18px;margin-bottom:6px}
+@media(max-width:900px){
+  .locbar{padding:6px 12px;gap:6px}
+  .locbar .lt{flex:1 1 100%}
+  .locbar .lt span{white-space:normal;overflow:visible}
+  .locbar .lnote{display:none}
+  .locbar .btn,.locbar select{flex:none;white-space:nowrap}
+}

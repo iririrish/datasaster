@@ -30,10 +30,26 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
   }
 
+  /* ---------- coverage areas (Phase 4): official place codes set by the DATAsaster team ---------- */
+  function covAreas() {
+    var out = [];
+    ((org && org.coverageNames) || []).forEach(function (t) { var p = String(t).split('|'); if (p.length >= 3 && /^[0-9]{9,10}$/.test(p[1])) { out.push({ c: p[1], n: p.slice(2).join('|') }); } });
+    return out;
+  }
+  function hasCov() { return !!org && ['regCodes', 'provCodes', 'cityCodes', 'brgyCodes'].some(function (k) { return org[k] && org[k].length; }); }
+  function inList(l, v) { return !!v && !!l && l.indexOf(v) > -1; }
+  /* same test as the server rules: no codes on the organization = box only; a report with no codes = box only; otherwise a code must match */
+  function codeCovers(r) {
+    if (!hasCov()) { return true; }
+    if (!r.regCode && !r.provCode && !r.cityCode && !r.brgyCode) { return true; }
+    return inList(org.brgyCodes, r.brgyCode) || inList(org.cityCodes, r.cityCode) || inList(org.provCodes, r.provCode) || inList(org.regCodes, r.regCode);
+  }
   /* ---------- my incidents: the organization's hazard types AND coverage box ---------- */
   function mine(r) {
     var t = org && org.types || [];
     return typeof r.lat === 'number' && typeof r.lng === 'number' && t.indexOf(r.type) > -1
+      && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east
+      && codeCovers(r);
       && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east;
   }
   function incidents() { return reports.filter(mine); }
@@ -58,6 +74,7 @@
     var el = $('app');
     setShell();
     if (!db) { el.innerHTML = '<p class="m" style="padding:24px 0">The console is not available right now. Please try again later or email ' + MAIL + '.</p>'; return; }
+    if (!user) { if (!$('siForm')) { el.innerHTML = signIn(); } return; }
     if (!user) { el.innerHTML = signIn(); return; }
     if (!member) { el.innerHTML = '<div class="cpanel signin"><div class="body"><h2 style="font-size:18px;margin-bottom:6px">This account is not an organization admin</h2><p class="m">You are signed in as ' + esc(user.email || '') + '. Organization access is set up by the DATAsaster team after a partnership is approved. <a href="apply.html">Apply for partnership</a> or email ' + MAIL + '.</p><p><button class="btn" data-act="out" type="button">Sign out</button></p></div></div>'; return; }
     if (!org) { el.innerHTML = '<p class="m" style="padding:24px 0">Loading your organization...</p>'; return; }
@@ -128,12 +145,14 @@
       + '<div class="field"><label class="l" for="aDesc">Description</label><textarea id="aDesc" maxlength="1500">' + esc(f.desc) + '</textarea></div>'
       + '<div class="row2c"><div class="field"><label class="l" for="aStart">Starts (Manila time)</label><input type="datetime-local" id="aStart" value="' + liLocal(f.startsAt) + '"></div><div class="field"><label class="l" for="aEnd">Ends (Manila time)</label><input type="datetime-local" id="aEnd" value="' + liLocal(f.endsAt) + '"></div></div>'
       + '<div class="field"><label class="l" for="aAreas">Affected areas <span class="m" style="font-weight:400">Optional</span></label><input type="text" id="aAreas" maxlength="200" value="' + esc(f.areas) + '"></div>'
+      + (hasCov() ? '<div class="field"><span class="l">Who should see it</span><div class="hint">Residents who chose one of these areas see it first. Tick at least one (up to 10).</div><div class="radios">' + covAreas().map(function (a) { return '<label><input type="checkbox" name="aarea" value="' + esc(a.c) + '"' + ((f.areaCodes || []).indexOf(a.c) > -1 ? ' checked' : '') + '> ' + esc(a.n) + '</label>'; }).join('') + '</div></div>' : '')
       + '<div class="m" style="font-size:11px;font-weight:700;letter-spacing:.06em">PUBLIC PREVIEW</div><div class="preview" id="aPrev">' + pv + '</div>'
       + '<div class="err" id="aErr" role="alert">' + esc(f.err) + '</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" type="button" data-act="saveann" data-st="draft">Save draft</button><button class="btn primary" type="button" data-act="saveann" data-st="published">Publish announcement</button><button class="btn" type="button" data-act="cancelann">Cancel</button></div></div></form>';
   }
   function readForm() {
     var r = document.querySelector('input[name=atype]:checked');
     form.type = r ? r.value : form.type; form.title = $('aTitle').value.replace(/^\s+|\s+$/g, ''); form.desc = $('aDesc').value.replace(/^\s+|\s+$/g, ''); form.areas = $('aAreas').value.replace(/^\s+|\s+$/g, '');
+    if (hasCov()) { form.areaCodes = []; each(document.querySelectorAll('input[name=aarea]:checked'), function (c) { form.areaCodes.push(c.value); }); }
     form.startsAt = fromLocal($('aStart').value) || form.startsAt; form.endsAt = fromLocal($('aEnd').value) || form.endsAt;
   }
   function saveAnn(status) {
@@ -143,6 +162,11 @@
     else if (f.desc.length < 3) { f.err = 'Enter a description.'; }
     else if (f.endsAt <= f.startsAt) { f.err = 'The end time must be after the start time.'; }
     else if (f.endsAt > now + 30 * 86400000) { f.err = 'An announcement can run for at most 30 days.'; }
+    else if (hasCov() && !f.areaCodes.length) { f.err = 'Tick at least one area that should see this announcement.'; }
+    else if (hasCov() && f.areaCodes.length > 10) { f.err = 'Choose at most 10 areas.'; }
+    if (f.err) { $('aErr').textContent = f.err; return; }
+    d = { orgId: org.id, orgName: org.name, type: f.type, title: f.title, desc: f.desc, areas: f.areas, startsAt: f.startsAt, endsAt: f.endsAt, status: status, uid: user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    if (hasCov()) { d.scope = 'areas'; d.areaCodes = f.areaCodes; }
     if (f.err) { $('aErr').textContent = f.err; return; }
     d = { orgId: org.id, orgName: org.name, type: f.type, title: f.title, desc: f.desc, areas: f.areas, startsAt: f.startsAt, endsAt: f.endsAt, status: status, uid: user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
     ref = f.id ? db.collection('announcements').doc(f.id) : db.collection('announcements').doc();
@@ -151,6 +175,7 @@
   function annById(id) { var r = null; each(anns, function (a) { if (a._id === id) { r = a; } }); return r; }
   function annWrite(a, extra, msg) {
     var d = { orgId: a.orgId, orgName: org.name, type: a.type, title: a.title, desc: a.desc, areas: a.areas || '', startsAt: a.startsAt, endsAt: a.endsAt, status: a.status, uid: user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, k;
+    if (a.scope) { d.scope = a.scope; } if (a.areaCodes) { d.areaCodes = a.areaCodes; }
     for (k in extra) { d[k] = extra[k]; }
     db.collection('announcements').doc(a._id).set(d).then(function () { toast(msg); }, function (er) { toast(errMsg(er)); });
   }
@@ -198,6 +223,7 @@
         + '<div class="row2c"><div class="field"><label class="l" for="pHot">Public hotline</label><input type="tel" id="pHot" maxlength="30" value="' + esc(org.hotline || '') + '"></div><div class="field"><label class="l" for="pMail">Public email <span class="m" style="font-weight:400">Optional</span></label><input type="email" id="pMail" maxlength="120" value="' + esc(org.publicEmail || '') + '"></div></div>'
         + '<div class="err" id="pErr" role="alert"></div><button class="btn primary" type="submit">Save profile</button></div></form>';
     } else if (sSec === 'coverage') {
+      h += '<div class="cpanel"><div class="ph"><h2>Coverage</h2><small>Read only. Set by the DATAsaster team.</small></div><div class="body"><p><b>Hazard types:</b> ' + esc((org.types || []).map(function (t) { return TYPE[t] || t; }).join(', ') || 'none') + '</p><p><b>Area (latitude, longitude):</b> ' + esc(org.south + ' to ' + org.north + ', ' + org.west + ' to ' + org.east) + '</p>' + (covAreas().length ? '<p><b>Areas:</b> ' + esc(covAreas().map(function (a) { return a.n; }).join('; ')) + '</p>' : '') + '<p class="m">You see and act on community reports only for these hazard types inside this area. To change it, email <a href="mailto:' + MAIL + '">' + MAIL + '</a>.</p></div></div>';
       h += '<div class="cpanel"><div class="ph"><h2>Coverage</h2><small>Read only. Set by the DATAsaster team.</small></div><div class="body"><p><b>Hazard types:</b> ' + esc((org.types || []).map(function (t) { return TYPE[t] || t; }).join(', ') || 'none') + '</p><p><b>Area (latitude, longitude):</b> ' + esc(org.south + ' to ' + org.north + ', ' + org.west + ' to ' + org.east) + '</p><p class="m">You see and act on community reports only for these hazard types inside this area. To change it, email <a href="mailto:' + MAIL + '">' + MAIL + '</a>.</p></div></div>';
     } else {
       h += '<div class="cpanel"><div class="ph"><h2>Account</h2></div><div class="body"><p>Signed in as <b>' + esc(user.email || '') + '</b></p><button class="btn" data-act="out" type="button">Sign out</button></div></div>';
@@ -267,6 +293,7 @@
     if (a === 'newann') { form = newForm(); view(); return; }
     if (a === 'cancelann') { form = null; view(); return; }
     if (a === 'saveann') { saveAnn(t.getAttribute('data-st')); return; }
+    if (a === 'editann') { var x = annById(id); if (x) { form = { id: x._id, type: x.type, title: x.title, desc: x.desc, areas: x.areas || '', startsAt: x.startsAt, endsAt: x.endsAt, areaCodes: (x.areaCodes || []).slice(), err: '' }; if (tab !== 'ann') { tab = 'ann'; } view(); window.scrollTo(0, 0); } return; }
     if (a === 'editann') { var x = annById(id); if (x) { form = { id: x._id, type: x.type, title: x.title, desc: x.desc, areas: x.areas || '', startsAt: x.startsAt, endsAt: x.endsAt, err: '' }; if (tab !== 'ann') { tab = 'ann'; } view(); window.scrollTo(0, 0); } return; }
     if (a === 'endann') { var y = annById(id); if (y) { annWrite(y, { endsAt: Date.now(), status: 'published' }, 'Announcement ended'); } return; }
     if (a === 'delann') { confirmId = id; var b = $('annList'); if (b) { b.innerHTML = vAnnList(annOf(annTab)); } return; }

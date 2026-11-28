@@ -44,6 +44,7 @@
   <span class="net" id="net" hidden>Offline</span>
   <div class="clock"><small>Manila time</small><b id="clk">--:--:--</b></div>
   <a class="btn" id="btnPartner" href="partner.html">Partner with us</a>
+  <button class="btn" id="btnLoc" type="button" aria-label="Choose your area"></button>
   <button class="btn" id="btnRev" hidden aria-label="Review reports"></button>
   <button class="btn" id="btnSet"></button>
   <button class="btn primary" id="btnRep"></button>
@@ -51,6 +52,7 @@
 
 <div id="viewDash">
 <div class="annbar" id="annBar" hidden></div>
+<div class="locbar" id="locBar" aria-label="Area filter"></div>
 <nav class="bar">
   <div class="segs" id="segs"></div>
   <div class="sp"></div>
@@ -240,6 +242,7 @@
     <label class="l">Location</label>
     <div class="row2"><button class="btn" id="rPick" type="button">Pick on map</button><button class="btn" id="rGps" type="button">Use my location</button></div>
     <div class="hint" id="rLoc">No location set</div>
+    <div class="hint" id="rArea" aria-live="polite"></div>
     <label class="l">Place name</label><input type="text" id="rPlace" maxlength="200" placeholder="Barangay, city">
     <label class="l" for="rAuthor">Your name (optional)</label><input type="text" id="rAuthor" maxlength="40" autocomplete="off" placeholder="Leave blank to stay anonymous">
     <div class="hint">Shown publicly next to your report. It is not checked, so it does not prove who you are.</div>
@@ -265,6 +268,7 @@
 <script src="js/firebase-config.js"></script>
 <script src="js/cloud.js"></script>
 <script src="js/data.js"></script>
+<script src="js/places.js"></script>
 <script src="js/app.js"></script>
 <script src="js/lgu-public.js"></script>
 </body>

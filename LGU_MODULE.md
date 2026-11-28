@@ -135,3 +135,35 @@ Publish the whole `firestore.rules` again. Phase 3 changes:
 - Invitation and password emails come from Firebase's default template. Edit the wording in Firebase console > Authentication > Templates. They can land in spam.
 - Retention (Privacy Policy section 9) is done by you with the Delete buttons. The page shows the due dates but does not delete anything by itself.
 - Approving does not email the applicant. Use Email applicant.
+
+
+## Phase 4: area coverage and the resident area filter
+
+Phase 4 is not described in the original spec, so its scope was taken from the "Admin roles, coverage and location filtering" guide: official place codes, coverage per organization, and a location filter for residents. Nothing else was added.
+
+### Files
+New: `js/places.js`, `firestore.indexes.json`. Changed: `index.html`, `js/app.js`, `js/cloud.js`, `js/lgu-public.js`, `js/lgu-console.js`, `js/lgu-admin.js`, `css/lgu.css`, `firestore.rules`, `sw.js`.
+
+### How it works
+- **Place codes.** Region, province, city or municipality and barangay come from the free public PSGC list (`https://psgc.gitlab.io/api`), loaded in the visitor's browser and cached 90 days in `localStorage`. Nothing is bundled or invented. To use another copy, set `window.PSGC_API` before `js/places.js` loads.
+- **Resident.** The pin button in the header (or "Choose your area") opens the picker: region, province, city, barangay (optional). The choice is saved on the device (`ds_loc`), needs no account, and can be changed. "Area size" widens it to city only, plus province, or plus region. "Nationwide" turns the filter off and zooms the map to the whole country. Turning it on again zooms back to the saved place.
+- **Feed.** With the filter on, reports of the saved city come first, then the province and region (per Area size). Old reports without codes are placed by distance from the saved place. Reports of an area are never hidden because it has no partner office; the bar says so instead. Announcements for the visitor's area come first, followed by at most 3 nationwide ones.
+- **New reports** carry the codes of the area the poster chose (skipped when the pin is more than 150 km away from it).
+- **Organizations** get coverage lists (`regCodes`, `provCodes`, `cityCodes`, `brgyCodes`, `coverageNames`) set by the Super Admin in `admin.html`. An organization without lists keeps the older box-only rule. Org admins cannot change coverage.
+- **Announcements** of an organization with coverage must pick one to ten areas from its own coverage list. Only organizations without coverage lists may post nationwide.
+
+### Rules to publish
+Publish the whole `firestore.rules` file. Create the three indexes in `firestore.indexes.json` (or open the link the browser console prints the first time a query needs one).
+
+### Test list (run on your real Firebase project; no emulator was available)
+1. Org admin with `cityCodes: [Cebu City]` verifies a flood report tagged Cebu City: allowed. A report tagged Mandaue inside the same box: denied.
+2. Same admin publishes an announcement with `areaCodes` outside its coverage: denied. With a covered code: allowed. With `scope: "national"`: denied.
+3. Same admin changes its own `cityCodes`, or the report's codes: denied.
+4. Visitor creates a report with `cityCode: "abc"`: denied. With a 10-digit code: allowed.
+5. Visitor reads reports and published announcements: allowed. Reads `orgMembers`: denied.
+
+### Limits to know
+- Rules cannot check a report's codes against its coordinates. A person can tag a report with a wrong area; it can only make that report appear in the wrong area's feed and console. It gives no admin power.
+- The coverage box is still typed by the Super Admin, because the PSGC list has no map boundaries.
+- Map centring uses the free Open-Meteo geocoder and may be approximate. If it is down the map fits the area's reports instead.
+- If the PSGC service is down, the picker shows an error with "Try again". Already saved areas keep working.

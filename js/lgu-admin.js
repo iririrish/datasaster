@@ -31,6 +31,11 @@
     var el = $('app'), keep = document.activeElement && document.activeElement.id;
     setShell();
     if (!db) { el.innerHTML = '<p class="m" style="padding:24px 0">Not available right now.</p>'; return; }
+    if (!user) { if ($('siForm')) { return; } el.innerHTML = '<form class="cpanel signin cform" id="siForm" novalidate><div class="body"><h2 style="font-size:20px;margin-bottom:4px">Super admin sign in</h2><p class="m" style="margin:0 0 14px">For the DATAsaster owner account only.</p><div class="field"><label class="l" for="siEm">Email</label><input type="email" id="siEm" autocomplete="username"></div><div class="field"><label class="l" for="siPw">Password</label><input type="password" id="siPw" autocomplete="current-password"></div><div class="err" id="siErr" role="alert"></div><button class="btn primary" type="submit">Sign in</button></div></form>'; return; }
+    if (owner && form && tab === 'orgs' && $('orgForm') && $('orgForm').getAttribute('data-fid') === String(form._fid)) { return; }
+    if (!owner) { el.innerHTML = '<div class="cpanel signin"><div class="body"><h2 style="font-size:18px;margin-bottom:6px">Owner account required</h2><p class="m">' + esc(user.email || '') + ' is not the owner account. The owner has an <code>admins</code> document without a role (or with role owner).</p><button class="btn" data-act="out" type="button">Sign out</button></div></div>'; return; }
+    el.innerHTML = tab === 'apps' ? vApps() : (tab === 'orgs' ? vOrgs() : vAnns());
+    if (form && $('covPick')) { initCov(); }
     if (!user) { el.innerHTML = '<form class="cpanel signin cform" id="siForm" novalidate><div class="body"><h2 style="font-size:20px;margin-bottom:4px">Super admin sign in</h2><p class="m" style="margin:0 0 14px">For the DATAsaster owner account only.</p><div class="field"><label class="l" for="siEm">Email</label><input type="email" id="siEm" autocomplete="username"></div><div class="field"><label class="l" for="siPw">Password</label><input type="password" id="siPw" autocomplete="current-password"></div><div class="err" id="siErr" role="alert"></div><button class="btn primary" type="submit">Sign in</button></div></form>'; return; }
     if (!owner) { el.innerHTML = '<div class="cpanel signin"><div class="body"><h2 style="font-size:18px;margin-bottom:6px">Owner account required</h2><p class="m">' + esc(user.email || '') + ' is not the owner account. The owner has an <code>admins</code> document without a role (or with role owner).</p><button class="btn" data-act="out" type="button">Sign out</button></div></div>'; return; }
     el.innerHTML = tab === 'apps' ? vApps() : (tab === 'orgs' ? vOrgs() : vAnns());
@@ -116,6 +121,37 @@
 
   /* ---------- organization form (used for approval and editing) ---------- */
   function orgFormFrom(a, o) {
+    if (o) { return { id: o._id, edit: true, appId: o.appId || '', name: o.name, type: o.type, province: o.province, city: o.city, barangay: o.barangay || '', address: o.address, hotline: o.hotline || '', publicEmail: o.publicEmail || '', types: (o.types || []).slice(), south: o.south, north: o.north, west: o.west, east: o.east, status: o.status, cov: covFrom(o), _fid: Date.now() + Math.random(), err: '' }; }
+    return { id: '', edit: false, appId: a._id, name: a.orgName, type: a.orgType, province: a.province, city: a.city, barangay: a.barangay || '', address: a.address, hotline: '', publicEmail: '', types: TYPES.slice(), south: '', north: '', west: '', east: '', status: 'active', cov: [], _fid: Date.now() + Math.random(), err: '' };
+  }
+  /* ---- coverage areas (Phase 4): official place codes, picked with the shared picker ---- */
+  var LV = { reg: 'region', prov: 'province', city: 'city or municipality', brgy: 'barangay' }, covPk = null;
+  function covFrom(o) {
+    var out = [];
+    each(o.coverageNames || [], function (t) { var p = String(t).split('|'); if (p.length >= 3 && LV[p[0]] && /^[0-9]{9,10}$/.test(p[1])) { out.push({ l: p[0], c: p[1], n: p.slice(2).join('|') }); } });
+    return out;
+  }
+  function covHtml(f) {
+    if (!f.cov.length) { return '<div class="m">No areas added. Only the box above limits this organization.</div>'; }
+    return '<ul class="covl">' + f.cov.map(function (x, i) { return '<li><span><b>' + esc(x.n) + '</b> <small>' + LV[x.l] + '</small></span><button class="btn sm" type="button" data-act="covdel" data-i="' + i + '">Remove</button></li>'; }).join('') + '</ul>';
+  }
+  function initCov() {
+    var el = $('covPick');
+    if (!el || !window.PLACES) { return; }
+    covPk = PLACES.picker(el, { prefix: 'cv', barangay: true });
+  }
+  function covAdd() {
+    var v = covPk ? covPk.value() : null, k, l = null, name, i;
+    if (!v || !v.reg) { $('covMsg').textContent = 'Choose a region first.'; return; }
+    k = v.brgy ? 'brgy' : (v.city ? 'city' : (v.prov ? 'prov' : 'reg'));
+    name = [v.brgy && v.brgy.n, v.city && v.city.n, v.prov && v.prov.n, !v.prov && !v.city && v.reg.n].filter(Boolean).join(', ');
+    for (i = 0; i < form.cov.length; i++) { if (form.cov[i].c === v[k].c) { $('covMsg').textContent = 'Already added.'; return; } }
+    if (form.cov.length >= 50) { $('covMsg').textContent = 'At most 50 areas.'; return; }
+    form.cov.push({ l: k, c: v[k].c, n: name }); $('covMsg').textContent = ''; $('covList').innerHTML = covHtml(form);
+  }
+  function vOrgForm() {
+    var f = form;
+    return '<form class="cpanel cform" id="orgForm" data-fid="' + f._fid + '" novalidate><div class="ph"><h2>' + (f.edit ? 'Edit organization' : 'Create organization') + '</h2><small>' + (f.edit ? '' : 'From the application. Set the hazard types and the area it covers.') + '</small></div><div class="body">'
     if (o) { return { id: o._id, edit: true, appId: o.appId || '', name: o.name, type: o.type, province: o.province, city: o.city, barangay: o.barangay || '', address: o.address, hotline: o.hotline || '', publicEmail: o.publicEmail || '', types: (o.types || []).slice(), south: o.south, north: o.north, west: o.west, east: o.east, status: o.status, err: '' }; }
     return { id: '', edit: false, appId: a._id, name: a.orgName, type: a.orgType, province: a.province, city: a.city, barangay: a.barangay || '', address: a.address, hotline: '', publicEmail: '', types: TYPES.slice(), south: '', north: '', west: '', east: '', status: 'active', err: '' };
   }
@@ -128,6 +164,7 @@
       + '<div class="row2c"><div class="field"><label class="l" for="oHot">Public hotline <span class="m" style="font-weight:400">Optional</span></label><input type="tel" id="oHot" value="' + esc(f.hotline) + '"></div><div class="field"><label class="l" for="oMail">Public email <span class="m" style="font-weight:400">Optional</span></label><input type="email" id="oMail" value="' + esc(f.publicEmail) + '"></div></div>'
       + '<div class="field"><span class="l">Hazard types this organization can act on</span><div class="radios">' + TYPES.map(function (t) { return '<label><input type="checkbox" name="otype" value="' + t + '"' + (f.types.indexOf(t) > -1 ? ' checked' : '') + '> ' + TL[t] + '</label>'; }).join('') + '</div></div>'
       + '<div class="field"><span class="l">Coverage box (decimal degrees)</span><div class="row2c"><input type="text" id="oS" placeholder="South latitude, e.g. 13.70" value="' + esc(f.south) + '"><input type="text" id="oN" placeholder="North latitude, e.g. 13.80" value="' + esc(f.north) + '"></div><div class="row2c" style="margin-top:8px"><input type="text" id="oW" placeholder="West longitude, e.g. 121.00" value="' + esc(f.west) + '"><input type="text" id="oE" placeholder="East longitude, e.g. 121.10" value="' + esc(f.east) + '"></div><div class="hint">The organization sees and acts on community reports only inside this box. Read a box off the map at bboxfinder.com. Philippines only.</div></div>'
+      + '<div class="field"><span class="l">Coverage areas <span class="m" style="font-weight:400">Official place codes</span></span><div class="hint">Add each province, city or barangay this organization manages. Its admins can then act only on reports tagged with these areas and can announce only for them. The box above still applies.</div><div class="pkgrid" id="covPick"></div><button class="btn sm" type="button" data-act="covadd">Add this area</button> <span class="err" id="covMsg" style="display:inline"></span><div id="covList" style="margin-top:8px">' + covHtml(f) + '</div></div>'
       + (f.edit ? '<div class="field"><label class="l" for="oStat">Status</label><select id="oStat"><option value="active"' + (f.status === 'active' ? ' selected' : '') + '>Active</option><option value="suspended"' + (f.status === 'suspended' ? ' selected' : '') + '>Suspended</option></select></div>' : '')
       + '<div class="err" id="oErr" role="alert">' + esc(f.err) + '</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="submit">' + (f.edit ? 'Save organization' : 'Approve and create organization') + '</button><button class="btn" type="button" data-act="cancelform">Cancel</button></div></div></form>';
   }
@@ -141,6 +178,8 @@
   }
   function saveOrg() {
     var f, S, N, W, E, d, id, b, e = '';
+    readOrgForm(); f = form; function covCodes(l) { return f.cov.filter(function (x) { return x.l === l; }).map(function (x) { return x.c; }); }
+    S = parseFloat(f.south); N = parseFloat(f.north); W = parseFloat(f.west); E = parseFloat(f.east);
     readOrgForm(); f = form; S = parseFloat(f.south); N = parseFloat(f.north); W = parseFloat(f.west); E = parseFloat(f.east);
     if (f.name.length < 3) { e = 'Enter the organization name.'; } else if (f.province.length < 2 || f.city.length < 2) { e = 'Enter the province and city or municipality.'; } else if (f.address.length < 3) { e = 'Enter the office address.'; }
     else if (f.hotline && !/^[0-9+() -]{3,30}$/.test(f.hotline)) { e = 'Hotline: digits, spaces, + ( ) and - only.'; } else if (f.publicEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.publicEmail)) { e = 'Enter a full public email address.'; }
@@ -148,6 +187,7 @@
     else if (S >= N || W >= E) { e = 'South must be less than north, and west less than east.'; } else if (S < 4 || N > 22 || W < 116 || E > 127) { e = 'The box must be inside the Philippines (latitude 4 to 22, longitude 116 to 127).'; }
     f.err = e; if (e) { $('oErr').textContent = e; return; }
     id = f.edit ? f.id : (f.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 30) + '-' + randId(4));
+    d = { name: f.name, type: f.type, province: f.province, city: f.city, barangay: f.barangay, address: f.address, hotline: f.hotline, publicEmail: f.publicEmail, status: f.edit ? f.status : 'active', types: f.types, south: S, north: N, west: W, east: E, appId: f.appId || '', updatedAt: ts(), regCodes: covCodes('reg'), provCodes: covCodes('prov'), cityCodes: covCodes('city'), brgyCodes: covCodes('brgy'), coverageNames: f.cov.map(function (x) { return x.l + '|' + x.c + '|' + x.n.substring(0, 160); }) };
     d = { name: f.name, type: f.type, province: f.province, city: f.city, barangay: f.barangay, address: f.address, hotline: f.hotline, publicEmail: f.publicEmail, status: f.edit ? f.status : 'active', types: f.types, south: S, north: N, west: W, east: E, appId: f.appId || '', updatedAt: ts() };
     b = db.batch(); b.set(db.collection('organizations').doc(id), d);
     if (!f.edit && f.appId) { b.update(db.collection('applications').doc(f.appId), { status: 'approved', decidedAt: Date.now(), orgId: id, updatedAt: ts() }); }
@@ -166,6 +206,7 @@
   function vOrgDetail() {
     var o = byId(orgs, selOrg), h;
     if (!o) { return '<div class="cpanel"><div class="body m">Choose an organization.</div></div>'; }
+    h = '<div class="cpanel"><div class="ph"><h2>' + esc(o.name) + '</h2>' + chip(o.status === 'active' ? 'res' : 'gen', o.status === 'active' ? 'ACTIVE' : 'SUSPENDED') + '</div><div class="tblwrap"><table class="tbl"><tbody>' + row('Coverage box', esc(o.south + ' to ' + o.north + ', ' + o.west + ' to ' + o.east)) + row('Coverage areas', covFrom(o).length ? covFrom(o).map(function (x) { return esc(x.n) + ' (' + LV[x.l] + ')'; }).join('<br>') : 'None added (box only)') + row('Address', esc(o.address)) + row('Hotline', esc(o.hotline || '')) + row('Public email', esc(o.publicEmail || '')) + '</tbody></table></div>'
     h = '<div class="cpanel"><div class="ph"><h2>' + esc(o.name) + '</h2>' + chip(o.status === 'active' ? 'res' : 'gen', o.status === 'active' ? 'ACTIVE' : 'SUSPENDED') + '</div><div class="tblwrap"><table class="tbl"><tbody>' + row('Coverage', esc(o.south + ' to ' + o.north + ', ' + o.west + ' to ' + o.east)) + row('Address', esc(o.address)) + row('Hotline', esc(o.hotline || '')) + row('Public email', esc(o.publicEmail || '')) + '</tbody></table></div>'
       + '<div class="body"><button class="btn sm" data-act="editorg" data-id="' + o._id + '" type="button">Edit</button> <button class="btn sm ' + (o.status === 'active' ? 'danger' : '') + '" data-act="toggleorg" data-id="' + o._id + '" type="button">' + (o.status === 'active' ? 'Suspend' : 'Activate') + '</button></div></div>';
     h += '<div class="cpanel"><div class="ph"><h2>Organization admins</h2></div>' + (members.length ? members.map(function (m) { return '<div class="annrow" style="display:flex;gap:8px;align-items:center"><div style="flex:1"><b>' + esc(m.email || '(no email saved)') + '</b><div class="meta">Role: organization admin &middot; ' + esc(m._id) + '</div></div><button class="btn sm danger" data-act="rmmem" data-id="' + esc(m._id) + '" type="button">Remove</button></div>'; }).join('') : '<div class="body m">No admin yet.</div>')
@@ -244,6 +285,8 @@
     else if (a === 'pickorg') { selOrg = id; msg = null; watchMembers(id); view(); }
     else if (a === 'editorg') { form = orgFormFrom(null, byId(orgs, id)); view(); }
     else if (a === 'cancelform') { form = null; view(); }
+    else if (a === 'covadd') { covAdd(); }
+    else if (a === 'covdel') { form.cov.splice(parseInt(t.getAttribute('data-i'), 10), 1); $('covList').innerHTML = covHtml(form); }
     else if (a === 'toggleorg') { toggleOrg(id); }
     else if (a === 'rmmem') { db.collection('orgMembers').doc(id).delete().then(function () { toast('Admin removed'); }, function (er) { toast(errMsg(er)); }); }
     else if (a === 'delann') { confirm = { id: id }; view(); }

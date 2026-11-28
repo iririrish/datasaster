@@ -100,8 +100,9 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null
         && id.matches('[A-Za-z0-9_-]{1,40}')
-        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified','author','media'])
+        && request.resource.data.keys().hasOnly(['uid','type','sev','title','desc','place','lat','lng','img','imgs','obs','time','resolved','resAt','verified','author','media','regCode','provCode','cityCode','brgyCode'])
         && request.resource.data.uid == request.auth.uid
+        && codeOk(request.resource.data.get('regCode', '')) && codeOk(request.resource.data.get('provCode', '')) && codeOk(request.resource.data.get('cityCode', '')) && codeOk(request.resource.data.get('brgyCode', ''))
         && request.resource.data.type in ['flood','fire','quake','volcano','typhoon','landslide']
         && request.resource.data.sev is int && request.resource.data.sev >= 0 && request.resource.data.sev <= 3
         && request.resource.data.title is string && request.resource.data.title.size() <= 200
@@ -348,11 +349,43 @@ service cloud.firestore {
     function isOrgAdminOf(oid) {
       return isOrgAdmin() && oid is string && oid != '' && myOrgId() == oid && orgOf(oid).get('status', '') == 'active';
     }
+    // ---- Phase 4: coverage by official PSGC place codes ----
+    // A place code is 9 or 10 digits (or empty). Rules only check the format; the codes come from the public PSGC list in the browser.
+    function codeOk(c) { return c is string && (c == '' || c.matches('[0-9]{9,10}')); }
+    function codeList(l) { return l is list && l.size() <= 50; }
+    function covList(o, k) { return o.get(k, []); }
+    function allCov(o) { return covList(o, 'regCodes').concat(covList(o, 'provCodes')).concat(covList(o, 'cityCodes')).concat(covList(o, 'brgyCodes')); }
+    function hasCov(o) { return allCov(o).size() > 0; }
+    function inList(l, v) { return v is string && v != '' && v in l; }
+    // Does organization o cover report r (r = stored report data)? An organization with no code lists keeps the old box-only rule.
+    // A report with no codes at all is left to the box rule too. A report WITH codes must match one of the organization's codes.
+    function covers(o, r) {
+      return !hasCov(o)
+        || (r.get('regCode', '') == '' && r.get('provCode', '') == '' && r.get('cityCode', '') == '' && r.get('brgyCode', '') == '')
+        || inList(covList(o, 'brgyCodes'), r.get('brgyCode', ''))
+        || inList(covList(o, 'cityCodes'), r.get('cityCode', ''))
+        || inList(covList(o, 'provCodes'), r.get('provCode', ''))
+        || inList(covList(o, 'regCodes'), r.get('regCode', ''));
+    }
+    // Announcement audience: nationwide (only for organizations without code lists) or up to 10 areas inside the organization's own coverage.
+    function scopeOk(d, o) {
+      return (!('scope' in d) && !('areaCodes' in d) && !hasCov(o))
+        || (d.get('scope', '') == 'national' && !('areaCodes' in d) && !hasCov(o))
+        || (d.get('scope', '') == 'areas' && d.get('areaCodes', []) is list && d.areaCodes.size() >= 1 && d.areaCodes.size() <= 10
+            && (!hasCov(o) || d.areaCodes.hasOnly(allCov(o))));
+    }
     // Is this report (r = its stored data) inside my organization's hazard types and coverage box?
     function canActOnReport(r) {
       return isOrgAdminOf(myOrgId())
         && r.type in orgOf(myOrgId()).get('types', [])
         && r.lat >= orgOf(myOrgId()).get('south', 91) && r.lat <= orgOf(myOrgId()).get('north', -91)
+        && r.lng >= orgOf(myOrgId()).get('west', 181) && r.lng <= orgOf(myOrgId()).get('east', -181)
+        && covers(orgOf(myOrgId()), r);
+    }
+    function annOk(d, oid) {
+      return d.keys().hasAll(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
+        && d.keys().hasOnly(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt','scope','areaCodes'])
+        && scopeOk(d, orgOf(oid))
         && r.lng >= orgOf(myOrgId()).get('west', 181) && r.lng <= orgOf(myOrgId()).get('east', -181);
     }
     function annOk(d, oid) {
@@ -372,6 +405,8 @@ service cloud.firestore {
     // Whole organization document, as written by the owner. The coverage box must lie inside the Philippines.
     function orgDocOk(d) {
       return d.keys().hasAll(['name','type','province','city','address','status','types','south','north','west','east','updatedAt'])
+        && d.keys().hasOnly(['name','type','province','city','barangay','address','hotline','publicEmail','status','types','south','north','west','east','appId','updatedAt','regCodes','provCodes','cityCodes','brgyCodes','coverageNames'])
+        && codeList(d.get('regCodes', [])) && codeList(d.get('provCodes', [])) && codeList(d.get('cityCodes', [])) && codeList(d.get('brgyCodes', [])) && codeList(d.get('coverageNames', []))
         && d.keys().hasOnly(['name','type','province','city','barangay','address','hotline','publicEmail','status','types','south','north','west','east','appId','updatedAt'])
         && strOk(d.name, 3, 120)
         && d.type in ['City','Municipality','Barangay','HOA','Other']

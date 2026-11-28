@@ -1,0 +1,8 @@
+{
+  "indexes": [
+    { "collectionGroup": "reports", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "cityCode", "order": "ASCENDING" }, { "fieldPath": "time", "order": "DESCENDING" } ] },
+    { "collectionGroup": "reports", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "provCode", "order": "ASCENDING" }, { "fieldPath": "time", "order": "DESCENDING" } ] },
+    { "collectionGroup": "reports", "queryScope": "COLLECTION", "fields": [ { "fieldPath": "regCode", "order": "ASCENDING" }, { "fieldPath": "time", "order": "DESCENDING" } ] }
+  ],
+  "fieldOverrides": []
+}
