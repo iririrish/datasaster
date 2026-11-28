@@ -50,6 +50,7 @@
     return typeof r.lat === 'number' && typeof r.lng === 'number' && t.indexOf(r.type) > -1
       && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east
       && codeCovers(r);
+      && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east;
   }
   function incidents() { return reports.filter(mine); }
   function stat(r) { return r.resolved ? 'res' : (r.verified ? 'act' : 'unv'); }
@@ -74,6 +75,7 @@
     setShell();
     if (!db) { el.innerHTML = '<p class="m" style="padding:24px 0">The console is not available right now. Please try again later or email ' + MAIL + '.</p>'; return; }
     if (!user) { if (!$('siForm')) { el.innerHTML = signIn(); } return; }
+    if (!user) { el.innerHTML = signIn(); return; }
     if (!member) { el.innerHTML = '<div class="cpanel signin"><div class="body"><h2 style="font-size:18px;margin-bottom:6px">This account is not an organization admin</h2><p class="m">You are signed in as ' + esc(user.email || '') + '. Organization access is set up by the DATAsaster team after a partnership is approved. <a href="apply.html">Apply for partnership</a> or email ' + MAIL + '.</p><p><button class="btn" data-act="out" type="button">Sign out</button></p></div></div>'; return; }
     if (!org) { el.innerHTML = '<p class="m" style="padding:24px 0">Loading your organization...</p>'; return; }
     if (org.status !== 'active') { el.innerHTML = '<div class="cpanel signin"><div class="body"><h2 style="font-size:18px;margin-bottom:6px">Organization not active</h2><p class="m">' + esc(org.name) + ' is currently ' + esc(org.status || 'inactive') + '. Email ' + MAIL + ' for help.</p></div></div>'; return; }
@@ -165,6 +167,8 @@
     if (f.err) { $('aErr').textContent = f.err; return; }
     d = { orgId: org.id, orgName: org.name, type: f.type, title: f.title, desc: f.desc, areas: f.areas, startsAt: f.startsAt, endsAt: f.endsAt, status: status, uid: user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
     if (hasCov()) { d.scope = 'areas'; d.areaCodes = f.areaCodes; }
+    if (f.err) { $('aErr').textContent = f.err; return; }
+    d = { orgId: org.id, orgName: org.name, type: f.type, title: f.title, desc: f.desc, areas: f.areas, startsAt: f.startsAt, endsAt: f.endsAt, status: status, uid: user.uid, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
     ref = f.id ? db.collection('announcements').doc(f.id) : db.collection('announcements').doc();
     ref.set(d).then(function () { toast(status === 'published' ? 'Announcement published' : 'Draft saved'); form = null; if (status === 'published') { annTab = f.startsAt > Date.now() ? 'sched' : 'active'; } else { annTab = 'draft'; } if (tab === 'ann') { view(); } }, function (er) { f.err = errMsg(er); if ($('aErr')) { $('aErr').textContent = f.err; } });
   }
@@ -220,6 +224,7 @@
         + '<div class="err" id="pErr" role="alert"></div><button class="btn primary" type="submit">Save profile</button></div></form>';
     } else if (sSec === 'coverage') {
       h += '<div class="cpanel"><div class="ph"><h2>Coverage</h2><small>Read only. Set by the DATAsaster team.</small></div><div class="body"><p><b>Hazard types:</b> ' + esc((org.types || []).map(function (t) { return TYPE[t] || t; }).join(', ') || 'none') + '</p><p><b>Area (latitude, longitude):</b> ' + esc(org.south + ' to ' + org.north + ', ' + org.west + ' to ' + org.east) + '</p>' + (covAreas().length ? '<p><b>Areas:</b> ' + esc(covAreas().map(function (a) { return a.n; }).join('; ')) + '</p>' : '') + '<p class="m">You see and act on community reports only for these hazard types inside this area. To change it, email <a href="mailto:' + MAIL + '">' + MAIL + '</a>.</p></div></div>';
+      h += '<div class="cpanel"><div class="ph"><h2>Coverage</h2><small>Read only. Set by the DATAsaster team.</small></div><div class="body"><p><b>Hazard types:</b> ' + esc((org.types || []).map(function (t) { return TYPE[t] || t; }).join(', ') || 'none') + '</p><p><b>Area (latitude, longitude):</b> ' + esc(org.south + ' to ' + org.north + ', ' + org.west + ' to ' + org.east) + '</p><p class="m">You see and act on community reports only for these hazard types inside this area. To change it, email <a href="mailto:' + MAIL + '">' + MAIL + '</a>.</p></div></div>';
     } else {
       h += '<div class="cpanel"><div class="ph"><h2>Account</h2></div><div class="body"><p>Signed in as <b>' + esc(user.email || '') + '</b></p><button class="btn" data-act="out" type="button">Sign out</button></div></div>';
     }
@@ -289,6 +294,7 @@
     if (a === 'cancelann') { form = null; view(); return; }
     if (a === 'saveann') { saveAnn(t.getAttribute('data-st')); return; }
     if (a === 'editann') { var x = annById(id); if (x) { form = { id: x._id, type: x.type, title: x.title, desc: x.desc, areas: x.areas || '', startsAt: x.startsAt, endsAt: x.endsAt, areaCodes: (x.areaCodes || []).slice(), err: '' }; if (tab !== 'ann') { tab = 'ann'; } view(); window.scrollTo(0, 0); } return; }
+    if (a === 'editann') { var x = annById(id); if (x) { form = { id: x._id, type: x.type, title: x.title, desc: x.desc, areas: x.areas || '', startsAt: x.startsAt, endsAt: x.endsAt, err: '' }; if (tab !== 'ann') { tab = 'ann'; } view(); window.scrollTo(0, 0); } return; }
     if (a === 'endann') { var y = annById(id); if (y) { annWrite(y, { endsAt: Date.now(), status: 'published' }, 'Announcement ended'); } return; }
     if (a === 'delann') { confirmId = id; var b = $('annList'); if (b) { b.innerHTML = vAnnList(annOf(annTab)); } return; }
     if (a === 'keepann') { confirmId = ''; var b2 = $('annList'); if (b2) { b2.innerHTML = vAnnList(annOf(annTab)); } return; }

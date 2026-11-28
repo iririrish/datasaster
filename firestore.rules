@@ -386,6 +386,11 @@ service cloud.firestore {
       return d.keys().hasAll(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
         && d.keys().hasOnly(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt','scope','areaCodes'])
         && scopeOk(d, orgOf(oid))
+        && r.lng >= orgOf(myOrgId()).get('west', 181) && r.lng <= orgOf(myOrgId()).get('east', -181);
+    }
+    function annOk(d, oid) {
+      return d.keys().hasAll(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
+        && d.keys().hasOnly(['orgId','orgName','type','title','desc','areas','startsAt','endsAt','status','uid','updatedAt'])
         && d.orgId == oid
         && d.orgName == orgOf(oid).get('name', '')
         && d.type in ['evacuation','general']
@@ -402,6 +407,7 @@ service cloud.firestore {
       return d.keys().hasAll(['name','type','province','city','address','status','types','south','north','west','east','updatedAt'])
         && d.keys().hasOnly(['name','type','province','city','barangay','address','hotline','publicEmail','status','types','south','north','west','east','appId','updatedAt','regCodes','provCodes','cityCodes','brgyCodes','coverageNames'])
         && codeList(d.get('regCodes', [])) && codeList(d.get('provCodes', [])) && codeList(d.get('cityCodes', [])) && codeList(d.get('brgyCodes', [])) && codeList(d.get('coverageNames', []))
+        && d.keys().hasOnly(['name','type','province','city','barangay','address','hotline','publicEmail','status','types','south','north','west','east','appId','updatedAt'])
         && strOk(d.name, 3, 120)
         && d.type in ['City','Municipality','Barangay','HOA','Other']
         && strOk(d.province, 2, 80) && strOk(d.city, 2, 80) && strOk(d.get('barangay', ''), 0, 80)

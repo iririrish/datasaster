@@ -101,6 +101,7 @@ These were designed but are not built. Each can be added later without changing 
 - **Automatic emails.** An acknowledgment email to the applicant and a notice to the owner on every application, and a status-change email. The browser cannot send mail, so this needs a small server function (for example a free Vercel serverless function with Brevo or Resend) and one secret API key.
 - **Larger uploads.** The letter of intent is limited to 600 KB and stored in Firestore. 10 MB files need Firebase Storage, which needs the paid Blaze plan, or another file host.
 - **Province, city and barangay drop-down lists** on the application form (the form uses typed text now). The area picker from `js/places.js` can be reused for this.
+- **Province, city and barangay drop-down lists** on the application form (the form uses typed text now). Needs a Philippine places list.
 - **Branded invitation emails.** Admins are invited by Firebase's standard password-reset email (plain wording, may land in spam). A branded invitation or status-change email needs the same server function as the automatic emails.
 - **Platform settings page** (global switches, defaults), a team-roles screen for several owners, and an audit-log entry for organization-admin actions.
 - **Automatic deletion** of old applications and documents, to match the retention in `privacy.html` (needs a scheduled server function). It is done by hand until then.

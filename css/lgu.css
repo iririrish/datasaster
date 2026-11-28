@@ -67,6 +67,15 @@
 .pmodal .acts .btn{text-decoration:none;color:var(--text);flex:1;text-align:center;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
 .pmodal .acts .btn.primary{color:#fff}
 @media(max-width:900px){.pmodal{padding-bottom:calc(16px + env(safe-area-inset-bottom))}}
+/* home page banner */
+.partnerband{max-width:1400px;margin:24px auto 0;padding:0 16px}
+.partnerband .in{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.partnerband .t{flex:1;min-width:240px}
+.partnerband .t small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.partnerband .t b{display:block;font-size:17px;margin-bottom:2px}
+.partnerband .t span{font-size:13px;color:var(--muted)}
+.partnerband .btn{text-decoration:none;color:var(--text)}
+.partnerband .btn.primary{color:#fff}
 
 /* application form */
 .apply{max-width:1040px;margin:0 auto;padding:28px 16px 60px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
