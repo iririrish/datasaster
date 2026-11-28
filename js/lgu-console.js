@@ -50,7 +50,6 @@
     return typeof r.lat === 'number' && typeof r.lng === 'number' && t.indexOf(r.type) > -1
       && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east
       && codeCovers(r);
-      && r.lat >= org.south && r.lat <= org.north && r.lng >= org.west && r.lng <= org.east;
   }
   function incidents() { return reports.filter(mine); }
   function stat(r) { return r.resolved ? 'res' : (r.verified ? 'act' : 'unv'); }

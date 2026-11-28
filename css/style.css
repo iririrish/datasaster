@@ -554,3 +554,53 @@ body.fcon .legend{bottom:134px}
 .sv2 .search input{padding-right:34px}
 .svclr{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;background:none;color:var(--muted);border-radius:50%;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
 .svclr:hover,.svclr:focus-visible{background:var(--panel2);color:var(--text)}
+
+/* ===== Steady header rows: on the Map and Feed tabs the dashboard is a fixed-height flex column.
+   Without flex:none the header, category bar and area banner shrank whenever the feed list was long,
+   so the category chips grew and shrank as you switched categories. ===== */
+.top,.bar,.locbar,.annbar{flex:none}
+.bar{min-height:54px}
+@media(max-width:900px){.bar{min-height:50px}}
+.seg{flex:none;white-space:nowrap}
+
+/* Settings: Partnership card */
+.svpartner{padding:14px 0}
+.svpartner small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.svpartner b{display:block;font-size:17px;margin-bottom:4px}
+.svpartner p{margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.svpartner .acts{margin-top:12px}
+.svpartner .btn{text-decoration:none;color:var(--text)}
+.svpartner .btn.primary{color:#fff}
+
+/* Help tab: guide button */
+.guidebtn{width:100%;justify-content:center;margin:0 0 16px;min-height:44px}
+
+/* First-time guide */
+.pmodal.tour{z-index:2150}
+.pmodal.tour .box{max-width:460px;padding:22px 20px 16px}
+.tstep{display:flex;align-items:center;gap:12px;margin-bottom:10px;padding-right:36px}
+.tstep .k{margin:0;padding:0}
+.tic{flex:none;width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--accentbg) 18%,transparent);color:var(--accent)}
+.pmodal.tour h2{font-size:20px;margin:0 0 8px;padding-right:0}
+.tbody{min-height:150px}
+.tbody p{margin:0 0 10px;color:var(--muted);font-size:14px;line-height:1.55}
+.tbody p b,.tbody li b{color:var(--text)}
+.tbody .m{font-size:12px}
+.tbody .safe{margin:4px 0 10px;font-size:13px}
+.tlist{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:10px}
+.tlist li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--muted)}
+.tlist li .ic{margin-top:2px;color:var(--accent)}
+.tact{width:100%;justify-content:center;min-height:44px;margin:2px 0 10px}
+.tdone{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;margin:0 0 8px;border:1px solid #1f7a55;border-radius:var(--r);background:rgba(52,211,153,.08);font-size:13px}
+.tdone .ic{color:#34d399}
+.tdots{display:flex;justify-content:center;gap:6px;margin:14px 0 12px}
+.tdots span{width:8px;height:8px;border-radius:50%;background:var(--line);transition:background .2s,width .2s}
+.tdots span.past{background:color-mix(in srgb,var(--accentbg) 50%,var(--line))}
+.tdots span.on{width:22px;border-radius:4px;background:var(--accentbg)}
+.tnav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tnav .btn{min-height:42px}
+.tskip{background:none;border-color:transparent;color:var(--muted);padding-left:4px;padding-right:4px}
+.tskip:hover{color:var(--text);border-color:transparent}
+@media(prefers-reduced-motion:reduce){.tdots span{transition:none}}
+@media(max-width:380px){.tnav .btn{padding-left:10px;padding-right:10px}}
+.svmain .trow .btn{flex:none;white-space:nowrap}

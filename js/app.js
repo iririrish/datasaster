@@ -65,6 +65,7 @@
     nav: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
     user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.870"/><path d="M16 3.130a4 4 0 0 1 0 7.750"/>',
     info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>'
   };
   function icon(n, s) { s = s || 16; return '<svg class="ic" width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">' + (IC[n] || '') + '</svg>'; }
@@ -208,17 +209,17 @@
     for (i = 0; i < orgCov.length; i++) { o = orgCov[i]; for (j = 0; j < keys.length; j++) { if (o[keys[j]] && o[keys[j]].length && o[keys[j]].some(function (c) { return codes.indexOf(c) > -1; })) { return 'yes'; } } }
     return 'no';
   }
+  var SCOPE_TXT = { city: 'This city only', prov: '+ province', reg: '+ region' };
+  /* "Showing ..." banner: one short line. Tap it (or the pin button in the header) to change the area; the full choice is also in Settings > Your area. */
   function renderLocBar() {
     var b = $('locBar'), L, h, on, lab;
     if (!b) { return; }
     L = PLACES.get(); on = locOn(); lab = PLACES.label(L);
-    if (!L) { h = '<span class="lt">Showing reports from all over the Philippines.</span><button type="button" class="btn sm primary" data-locopen="1">Choose your area</button>'; }
+    if (!L) { h = '<button type="button" class="lt" data-locopen="1">' + icon('pin', 14) + '<span>Showing <b>all of the Philippines</b></span><span class="lgo">Set your area' + icon('right', 13) + '</span></button>'; }
     else if (on) {
-      h = '<span class="lt">' + icon('pin', 14) + ' <span>Showing <b>' + esc(lab) + '</b></span></span>'
-        + '<label class="lsc"><span class="vh">Area size</span><select id="locScope" aria-label="Area size"><option value="city"' + (PLACES.scope() === 'city' ? ' selected' : '') + '>This city only</option><option value="prov"' + (PLACES.scope() === 'prov' ? ' selected' : '') + '>+ province</option><option value="reg"' + (PLACES.scope() === 'reg' ? ' selected' : '') + '>+ region</option></select></label>'
-        + '<button type="button" class="btn sm" data-locopen="1">Change</button><button type="button" class="btn sm" data-locnat="1">Nationwide</button>';
+      h = '<button type="button" class="lt" data-locopen="1" aria-label="Showing ' + esc(lab) + ', ' + SCOPE_TXT[PLACES.scope()] + '. Change area">' + icon('pin', 14) + '<span>Showing <b>' + esc(lab) + '</b></span><span class="lsz">' + SCOPE_TXT[PLACES.scope()] + '</span><span class="lgo">' + icon('right', 13) + '</span></button>';
       if (orgCovers() === 'no') { h += '<span class="lnote">No partner office covers this area yet. Reports here are public and unverified.</span>'; }
-    } else { h = '<span class="lt">' + icon('pin', 14) + ' <span><b>Nationwide</b> view</span></span><button type="button" class="btn sm primary" data-locon="1">Back to ' + esc(lab) + '</button><button type="button" class="btn sm" data-locopen="1">Change area</button>'; }
+    } else { h = '<button type="button" class="lt" data-locopen="1">' + icon('pin', 14) + '<span>Showing <b>Nationwide</b></span><span class="lgo">' + icon('right', 13) + '</span></button><button type="button" class="lback" data-locon="1">Back to ' + esc((L.city || L.prov || L.reg).n) + '</button>'; }
     b.innerHTML = h;
     $('btnLoc').setAttribute('aria-label', L ? 'Area: ' + lab + (on ? '' : ' (nationwide view)') : 'Choose your area');
     $('btnLoc').innerHTML = icon('pin', 15) + '<span class="lbl"> ' + (L && on ? esc((L.city || L.prov || L.reg).n.length > 16 ? (L.city || L.prov || L.reg).n.substring(0, 15) + '…' : (L.city || L.prov || L.reg).n) : 'Area') + '</span>';
@@ -238,8 +239,19 @@
     if (L.reg) { it.regCode = L.reg.c; } if (L.prov) { it.provCode = L.prov.c; } if (L.city) { it.cityCode = L.city.c; } if (L.brgy) { it.brgyCode = L.brgy.c; }
   }
   /* The "Choose your area" dialog */
-  var locDlg = null, locPick = null, locLast = null;
-  function closeLoc() { if (locDlg) { locDlg.hidden = true; document.removeEventListener('keydown', locKey, true); if (locLast && locLast.focus) { try { locLast.focus(); } catch (e) {} } } }
+  var locDlg = null, locPick = null, locLast = null, locAfter = null, locSc = 'prov';
+  function closeLoc() {
+    var fn = locAfter;
+    if (locDlg) { locDlg.hidden = true; document.removeEventListener('keydown', locKey, true); if (!fn && locLast && locLast.focus) { try { locLast.focus(); } catch (e) {} } }
+    locAfter = null;
+    if (fn) { fn(); }
+  }
+  function scopeBtns(cur, attr) {
+    var h = '';
+    each(['city', 'prov', 'reg'], function (k) { h += '<button type="button" class="scb' + (cur === k ? ' on' : '') + '" ' + attr + '="' + k + '" aria-pressed="' + (cur === k ? 'true' : 'false') + '">' + SCOPE_TXT[k] + '</button>'; });
+    return h;
+  }
+  function drawLocScope() { var el = $('lcScope'); if (el) { el.innerHTML = scopeBtns(locSc, 'data-lcsc'); } }
   function locKey(e) {
     if (e.key === 'Escape' || e.keyCode === 27) { e.stopPropagation(); closeLoc(); return; }
     if (e.key === 'Tab' || e.keyCode === 9) {
@@ -248,16 +260,19 @@
       if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
     }
   }
-  function openLoc() {
+  function openLoc(preScope) {
     if (!window.PLACES) { return; }
     locLast = document.activeElement;
     if (!locDlg) {
       locDlg = document.createElement('div'); locDlg.className = 'pmodal'; locDlg.id = 'locModal'; locDlg.hidden = true;
       locDlg.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="lcH"><button type="button" class="btn x" id="lcX" aria-label="Close">&times;</button>'
         + '<h2 id="lcH">Choose your area</h2><p>Reports and announcements for your area come first. No account is needed. The choice stays on this device.</p>'
-        + '<div class="pkgrid" id="lcPick"></div><div class="hint" id="lcMsg" role="status" aria-live="polite"></div>'
+        + '<div class="pkgrid" id="lcPick"></div>'
+        + '<div class="pkf"><span class="l" id="lcScH">Show reports from</span><div class="scopes" id="lcScope" role="group" aria-labelledby="lcScH"></div></div>'
+        + '<div class="hint" id="lcMsg" role="status" aria-live="polite"></div>'
         + '<div class="acts"><button type="button" class="btn primary" id="lcSave">Save area</button><button type="button" class="btn" id="lcNat">Show nationwide</button></div></div>';
       document.body.appendChild(locDlg);
+      $('lcScope').addEventListener('click', function (e) { var t = e.target.closest ? e.target.closest('[data-lcsc]') : null; if (t) { locSc = t.getAttribute('data-lcsc'); drawLocScope(); } });
       locPick = PLACES.picker($('lcPick'), { prefix: 'lc', barangay: true }, function () { $('lcMsg').textContent = ''; });
       $('lcX').addEventListener('click', closeLoc);
       locDlg.addEventListener('mousedown', function (e) { if (e.target === locDlg) { closeLoc(); } });
@@ -266,22 +281,25 @@
         var v = locPick.value(), keep = PLACES.get();
         if (!v.reg || (!v.city && !v.prov)) { $('lcMsg').textContent = 'Choose at least a region and a province or city.'; return; }
         if (keep && keep.lat != null && keep.city && v.city && keep.city.c === v.city.c) { v.lat = keep.lat; v.lng = keep.lng; }
+        if (locSc !== PLACES.scope()) { PLACES.setScope(locSc); }
         if (!PLACES.set(v)) { $('lcMsg').textContent = 'Could not save this area.'; return; }
-        closeLoc(); toast('Area saved: ' + PLACES.label(PLACES.get()));
+        closeLoc(); toast('Area saved: ' + PLACES.label(PLACES.get()) + ' (' + SCOPE_TXT[locSc] + ')');
         if (typeof PLACES.get().lat !== 'number') { PLACES.locate(PLACES.get(), function (pt) { var cur = PLACES.get(); if (pt && cur && PLACES.label(cur) === PLACES.label(v)) { cur.lat = pt.lat; cur.lng = pt.lng; PLACES.set(cur); } }); }
       });
     }
+    locSc = SCOPE_TXT[preScope] ? preScope : PLACES.scope(); drawLocScope(); $('lcMsg').textContent = '';
     locDlg.hidden = false; locPick.set(PLACES.get());
     document.addEventListener('keydown', locKey, true);
     $('lcX').focus();
   }
   function onLocChange() {
     renderLocBar(); syncArea(); refresh(); locZoom();
+    if (viewing === 'settings') { svUpdate(false); }
+    if (tourOpen()) { drawTour(); }
   }
   function initLoc() {
     if (!window.PLACES) { return; }
-    $('btnLoc').addEventListener('click', openLoc);
-    document.addEventListener('change', function (e) { if (e.target && e.target.id === 'locScope') { PLACES.setScope(e.target.value); } });
+    $('btnLoc').addEventListener('click', function () { openLoc(); });
     PLACES.onChange(onLocChange);
     renderLocBar(); syncArea();
     if (locOn() && !window.location.hash) { locZoom(); }
@@ -1613,11 +1631,88 @@
   function initNotice() {
     var seen = false, d;
     try { seen = window.localStorage.getItem('datasaster_notice') === '1'; } catch (e) { seen = false; }
-    if (seen || $('noticeBar')) { return; }
+    if (seen || $('noticeBar') || tourOpen()) { return; }
     d = document.createElement('div'); d.id = 'noticeBar'; d.setAttribute('role', 'region'); d.setAttribute('aria-label', 'Privacy notice');
     d.innerHTML = '<span>DATAsaster saves your settings, reports you post from this device and a random sign-in ID in your browser so the app works. No ads. <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a></span><button class="btn sm primary" id="noticeOk" type="button">OK</button>';
     document.body.appendChild(d);
     $('noticeOk').addEventListener('click', function () { try { window.localStorage.setItem('datasaster_notice', '1'); } catch (e) {} if (d.parentNode) { d.parentNode.removeChild(d); } });
+  }
+  /* ---------- First-time guide: a short step-by-step walkthrough. Shown once per browser; reopen from Settings > About or the Help tab. ---------- */
+  var TOUR_KEY = 'datasaster_tour', tourDlg = null, tourStep = 0, tourLast = null;
+  function isPhone() { return window.matchMedia ? window.matchMedia('(max-width:900px)').matches : window.innerWidth <= 900; }
+  function tourOpen() { return !!(tourDlg && !tourDlg.hidden); }
+  function tourSteps() {
+    var L = window.PLACES && PLACES.get(), ph = isPhone();
+    return [
+      { ic: 'info', t: 'Welcome to DATAsaster', b: '<p>See floods, fires, earthquakes, volcanoes, typhoons and landslides in the Philippines on one map, with community reports and official advisories.</p><p>This guide takes about a minute. You can skip it and open it again later from Settings.</p><div class="safe"><b>Not an official warning channel.</b> In an emergency, call 911 or your local hotline first.</div>' },
+      { ic: 'pin', t: 'Choose your area', b: '<p>Pick your region, province and city so reports and announcements near you come first.</p><p>Then choose how wide to look: <b>This city only</b>, <b>+ province</b> or <b>+ region</b>. Choose <b>Nationwide</b> to see everything.</p>'
+          + (L ? '<div class="tdone">' + icon('check', 15) + ' Your area: <b>' + esc(PLACES.label(L)) + '</b> (' + (locOn() ? SCOPE_TXT[PLACES.scope()] : 'Nationwide view') + ')</div>' : '')
+          + '<button type="button" class="btn ' + (L ? '' : 'primary ') + 'tact" id="tourLoc">' + icon('pin', 15) + (L ? ' Change my area' : ' Choose my area') + '</button>'
+          + '<p class="m">You can change it any time with the ' + icon('pin', 13) + ' button at the top, or in Settings &gt; Your area.</p>', loc: true },
+      { ic: ph ? 'list' : 'layers', t: 'Find your way around', b: ph
+          ? '<p>Use the tabs at the bottom of the screen:</p><ul class="tlist"><li>' + icon('pin', 15) + '<span><b>Map</b>: incidents as markers. Pinch to zoom.</span></li><li>' + icon('list', 15) + '<span><b>Feed</b>: the same incidents as a list.</span></li><li>' + icon('news', 15) + '<span><b>News</b>: official advisories and headlines.</span></li><li>' + icon('phone', 15) + '<span><b>Help</b>: emergency hotlines. Tap a number to call.</span></li></ul>'
+          : '<ul class="tlist"><li>' + icon('list', 15) + '<span><b>Feed</b> on the left: every incident as a list.</span></li><li>' + icon('pin', 15) + '<span><b>Map</b> on the right: the same incidents as markers.</span></li><li>' + icon('news', 15) + '<span>Scroll down for <b>official advisories</b>, <b>headlines</b> and <b>emergency hotlines</b>.</span></li></ul>' },
+      { ic: 'sliders', t: 'Filter what you see', b: '<ul class="tlist"><li>' + icon('drop', 15) + '<span>Tap a category such as <b>General</b>, <b>Flooding</b> or <b>Fire</b> to show one kind of hazard.</span></li><li>' + icon('refresh', 15) + '<span>Use the date menu beside the categories to look back as far as 30 days.</span></li><li>' + icon('search', 15) + '<span>In the feed, search by place, or tap <b>Filters</b> for distance, status and severity.</span></li></ul>' },
+      { ic: 'alert', t: 'Read a report', b: '<p>Tap a marker or a row to open the details: photos, severity, place and time.</p><p>Community reports are <b>unverified</b> until a partner or agency checks them. Look for the verified and agency tags before you act on a report.</p>' },
+      { ic: 'plus', t: 'Report an incident', b: '<p>Tap <b>' + icon('plus', 13) + ' Report</b> at the top. Choose the type and severity, set the location on the map or with your GPS, and add up to 3 photos.</p><div class="safe"><b>Stay safe.</b> Never go near floodwater, fire or unstable ground for a photo. Do not include faces, number plates or home addresses.</div>' },
+      { ic: 'sliders', t: 'Alerts and settings', b: '<p>Open <b>' + icon('sliders', 13) + ' Settings</b> to:</p><ul class="tlist"><li>' + icon('alert', 15) + '<span>turn on <b>alerts</b> for serious reports near you,</span></li><li>' + icon('moon', 15) + '<span>switch between dark and light,</span></li><li>' + icon('layers', 15) + '<span>choose categories and sources.</span></li></ul><p class="m">To see this guide again, go to Settings &gt; About' + (ph ? ' or the Help tab' : '') + '.</p>' }
+    ];
+  }
+  function drawTour() {
+    var S = tourSteps(), s, i, dots = '';
+    if (!tourDlg) { return; }
+    if (tourStep >= S.length) { tourStep = S.length - 1; }
+    s = S[tourStep];
+    for (i = 0; i < S.length; i++) { dots += '<span class="' + (i === tourStep ? 'on' : (i < tourStep ? 'past' : '')) + '"></span>'; }
+    tourDlg.querySelector('.box').innerHTML = '<button type="button" class="btn x" id="tourX" aria-label="Close guide">&times;</button>'
+      + '<div class="tstep"><span class="tic">' + icon(s.ic, 22) + '</span><small class="k">Step ' + (tourStep + 1) + ' of ' + S.length + '</small></div>'
+      + '<h2 id="tourH">' + s.t + '</h2><div class="tbody" id="tourD">' + s.b + '</div>'
+      + '<div class="tdots" aria-hidden="true">' + dots + '</div>'
+      + '<div class="tnav">' + (tourStep < S.length - 1 ? '<button type="button" class="btn tskip" id="tourSkip">Skip guide</button>' : '<span></span>')
+      + '<span class="sp"></span>' + (tourStep > 0 ? '<button type="button" class="btn" id="tourBack">' + icon('left', 15) + ' Back</button>' : '')
+      + '<button type="button" class="btn primary" id="tourNext">' + (tourStep < S.length - 1 ? 'Next ' + icon('right', 15) : 'Start using DATAsaster') + '</button></div>';
+  }
+  function closeTour() {
+    if (!tourDlg) { return; }
+    tourDlg.hidden = true; lsSet(TOUR_KEY, '1');
+    document.removeEventListener('keydown', tourKey, true);
+    if (tourLast && tourLast.focus) { try { tourLast.focus(); } catch (e) {} }
+    initNotice();
+  }
+  function tourGo(i) { tourStep = i; drawTour(); var nb = $('tourNext'); if (nb) { nb.focus(); } }
+  function tourKey(e) {
+    if (!tourOpen() || (locDlg && !locDlg.hidden)) { return; }
+    if (e.key === 'Escape' || e.keyCode === 27) { e.stopPropagation(); closeTour(); return; }
+    if (e.key === 'Tab' || e.keyCode === 9) {
+      var f = tourDlg.querySelectorAll('button'), a = f[0], z = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+    }
+  }
+  function openTour(i) {
+    if (!tourDlg) {
+      tourDlg = document.createElement('div'); tourDlg.className = 'pmodal tour'; tourDlg.id = 'tourModal'; tourDlg.hidden = true;
+      tourDlg.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-labelledby="tourH" aria-describedby="tourD"></div>';
+      document.body.appendChild(tourDlg);
+      tourDlg.addEventListener('click', function (e) {
+        var t = e.target.closest ? e.target.closest('button') : null, n = tourSteps().length;
+        e.stopPropagation();
+        if (!t) { return; }
+        if (t.id === 'tourX' || t.id === 'tourSkip') { closeTour(); }
+        else if (t.id === 'tourBack') { tourGo(Math.max(0, tourStep - 1)); }
+        else if (t.id === 'tourNext') { if (tourStep >= n - 1) { closeTour(); } else { tourGo(tourStep + 1); } }
+        else if (t.id === 'tourLoc') { tourDlg.hidden = true; locAfter = function () { tourDlg.hidden = false; drawTour(); var nb = $('tourNext'); if (nb) { nb.focus(); } }; openLoc(); }
+      });
+    }
+    var nb0 = $('noticeBar'); if (nb0 && nb0.parentNode) { nb0.parentNode.removeChild(nb0); }
+    var pm = $('partnerModal'); if (pm) { pm.hidden = true; }
+    tourLast = document.activeElement; tourStep = i || 0;
+    drawTour(); tourDlg.hidden = false;
+    document.addEventListener('keydown', tourKey, true);
+    $('tourNext').focus();
+  }
+  function maybeTour() {
+    if (lsGet(TOUR_KEY) === '1' || window.location.hash) { return; }
+    openTour(0);
   }
   var toastT = null;
   function toast(msg) { var t = $('toast'); t.textContent = msg; t.className = 'toast show'; if (toastT) { clearTimeout(toastT); } toastT = setTimeout(function () { t.className = 'toast'; }, 2200); }
@@ -1628,7 +1723,7 @@
   function tile(attr, val, ic, label, sub, on) { return '<button class="opt' + (on ? ' on' : '') + '" ' + attr + '="' + val + '">' + icon(ic, 18) + '<span><b>' + label + '</b><small>' + sub + '</small></span></button>'; }
   function sect(ic, title, sub, body) { return '<section class="sc"><h3><span class="bx">' + icon(ic, 16) + '</span><span>' + title + '<small>' + sub + '</small></span></h3>' + body + '</section>'; }
   /* ---------- Settings: sidebar, search, per-section reset, save indicator ---------- */
-  var svPanel = 'appearance', svQuery = '', svSaveT = null;
+  var svPanel = 'area', svQuery = '', svSaveT = null;
   var RESETS = {
     appearance: ['theme', 'basemap', 'region'],
     feed: ['cats', 'sources', 'demo', 'showUnverified', 'showPhotos', 'showOldAdv', 'liveQuakes', 'minMag', 'liveNews', 'refresh'],
@@ -1653,8 +1748,30 @@
     if (CLOUD.media) { return 'Media account' + (CLOUD.outlet ? ': ' + esc(CLOUD.outlet) : '') + '. Your reports are shown under your outlet name. You can add reports. You cannot resolve or delete anything.'; }
     return 'Signed in, but this account has no extra permissions.';
   }
+  function areaPanel() {
+    var r = [], L = window.PLACES && PLACES.get(), on = locOn(), sc = window.PLACES ? PLACES.scope() : 'prov', b;
+    if (!window.PLACES) { return null; }
+    b = '<div class="trow"><div><b>' + (L ? esc(PLACES.label(L)) : 'No area chosen') + '</b><small>' + (L ? (on ? 'Reports and announcements for this area come first.' : 'Saved, but you are viewing the whole country.') : 'You are seeing reports from all over the Philippines.') + '</small></div><button type="button" class="btn sm' + (L ? '' : ' primary') + '" data-locopen="1">' + (L ? 'Change area' : 'Choose area') + '</button></div>';
+    r.push(mkRow('Your area', 'Region, province, city and barangay.', 'location place city province region barangay area', b, false));
+    b = '<div class="opts">'
+      + tile('data-locsc', 'city', 'pin', 'This city only', 'Your city or municipality', L && on && sc === 'city')
+      + tile('data-locsc', 'prov', 'layers', '+ province', 'Your city and the rest of its province', L && on && sc === 'prov')
+      + tile('data-locsc', 'reg', 'radar', '+ region', 'The whole region around you', L && on && sc === 'reg')
+      + tile('data-locsc', 'nat', 'nav', 'Nationwide', 'Every report in the Philippines', !L || !on)
+      + '</div>' + (L ? '' : '<div class="hint">Choose an area first to use the first three options.</div>');
+    r.push(mkRow('Show reports from', 'How wide an area the map, feed and announcements cover.', 'scope nationwide province region city only radius wide', b, true));
+    if (L && on && orgCovers() === 'no') { r.push(mkRow('Partner coverage', '', 'partner lgu office coverage', '<div class="trow"><div><b>No partner office yet</b><small>No partner office covers this area yet. Reports here are public and unverified.</small></div></div>', false)); }
+    return { id: 'area', label: 'Your area', ic: 'pin', desc: 'Choose your area and how wide to look. The choice stays on this device.', rows: r, reset: false };
+  }
+  function partnerPanel() {
+    var r = [];
+    r.push(mkRow('Run your area’s disaster dashboard', 'For LGUs, barangays, HOAs and response teams.', 'partner partnership lgu barangay hoa response team dashboard apply', '<div class="svpartner"><small>For LGUs, barangays, HOAs and response teams</small><b>Run your area’s disaster dashboard on DATAsaster</b><p>Review community reports and publish announcements to residents in your area. Applications are reviewed by the DATAsaster team.</p><div class="acts"><a class="btn" href="partner.html">Learn about partnership</a><a class="btn primary" href="apply.html">Apply for partnership</a></div></div>', false));
+    r.push(linkRow('Partner organization console', 'Already approved? Sign in to your organization’s console.', 'console.html', 'console sign in partner organization'));
+    return { id: 'partner', label: 'Partnership', ic: 'users', desc: 'For local governments, barangays, HOAs and response teams.', rows: r, reset: false };
+  }
   function svPanels() {
-    var s = settings, P = [], r, b, fg;
+    var s = settings, P = [], r, b, fg, ap = areaPanel();
+    if (ap) { P.push(ap); }
     /* Appearance and map */
     r = [];
     r.push(mkRow('Theme', 'Dark for low light, light for daytime.', 'dark light colours mode', '<div class="opts">' + tile('data-theme-set', 'dark', 'moon', 'Dark', 'Low-light console', s.theme === 'dark') + tile('data-theme-set', 'light', 'sun', 'Light', 'Daylight contrast', s.theme === 'light') + '</div>', true));
@@ -1716,9 +1833,11 @@
     r.push(mkRow('Data on this device', 'What this browser keeps.', 'storage local cache', '<div class="trow"><div><b>Data on this device</b><small>Your settings, ' + userItems.length + ' report' + (userItems.length === 1 ? '' : 's') + ' saved from this device, a cached copy of the app for offline use, and a random sign-in ID. Nothing is used for advertising.</small></div></div>', false));
     if (!CLOUD.media) { r.push(mkRow('Delete my reports', 'Removes reports you posted from this device.', 'remove erase', '<div class="trow"><div><b>Delete my reports</b><small>Removes the reports you posted from this device, including shared ones.</small></div><button class="btn sm danger" data-clearmine="1">Delete (' + (userItems.length + myCloud().length) + ')</button></div>', false)); }
     r.push(mkRow('Reset all settings', 'Puts every setting in every section back to its default.', 'default restore', '<div class="trow"><div><b>Reset all settings</b><small>Puts every setting in every section back to its default. Your reports are not touched.</small></div><button class="btn sm danger" data-reset="1">Reset all</button></div>', false));
+    P.push(partnerPanel());
     P.push({ id: 'privacy', label: 'Privacy & security', ic: 'lock', desc: 'Legal pages, your password and the data kept on this device.', rows: r, reset: false });
     /* About */
     r = [];
+    r.push(mkRow('App guide', 'Show the step-by-step guide for first-time users again.', 'help tutorial guide how to start onboarding walkthrough', '<div class="trow"><div><b>App guide</b><small>Show the step-by-step guide for first-time users again.</small></div><button class="btn sm" data-tour="1">Open guide</button></div>', false));
     r.push(mkRow('DATAsaster', 'Version and build', 'version name logo', '<div class="svabout"><img src="icon-192.png" width="56" height="56" alt="DATAsaster logo"><div><b>' + esc(APP_INFO.name) + '</b><small>Philippine disaster map, community reports and official advisories</small><small>Version ' + esc(APP_INFO.version) + ' \u00b7 build ' + esc(APP_INFO.build) + '</small></div></div>', false));
     b = ''; each(APP_INFO.releases, function (rl) { b += '<div class="rel"><b>Version ' + esc(rl.v) + '</b> <span class="m">' + esc(rl.date) + '</span><ul>'; each(rl.notes, function (nt) { b += '<li>' + esc(nt) + '</li>'; }); b += '</ul></div>'; });
     r.push(mkRow('Release notes', 'What changed in each version.', 'changelog updates new', b, true));
@@ -1882,7 +2001,7 @@
     if (window.__refT) { clearInterval(window.__refT); window.__refT = null; }
     if (settings.refresh > 0) { window.__refT = setInterval(function () { loadQuakes(); loadNews(); refreshLayers(); }, settings.refresh * 60000); }
   }
-  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh', 'data-infotab', 'data-svp', 'data-svreset', 'data-chgpw', 'data-goto', 'data-openreport', 'data-account', 'data-ftf', 'data-svclear', 'data-locopen', 'data-locnat', 'data-locon'];
+  var ACTIONS = ['data-tf', 'data-tr', 'data-id', 'data-open', 'data-showall', 'data-close', 'data-base', 'data-layer', 'data-sevf', 'data-layers-refresh', 'data-legend', 'data-fly', 'data-del', 'data-tog', 'data-clearmine', 'data-reset', 'data-newsretry', 'data-view', 'data-theme-set', 'data-pane', 'data-install', 'data-resolve', 'data-showres', 'data-adminlogin', 'data-adminout', 'data-sv', 'data-verify', 'data-flag', 'data-share', 'data-export', 'data-flagopen', 'data-flagdismiss', 'data-photo', 'data-pdel', 'data-auditload', 'data-assess', 'data-advnew', 'data-advedit', 'data-advcancel', 'data-advsave', 'data-advwd', 'data-rvf', 'data-rvt', 'data-rvopen', 'data-rvrefresh', 'data-infotab', 'data-svp', 'data-svreset', 'data-chgpw', 'data-goto', 'data-openreport', 'data-account', 'data-ftf', 'data-svclear', 'data-locopen', 'data-locnat', 'data-locon', 'data-locsc', 'data-tour'];
   function findAction(el) {
     var i;
     /* Stop at <body>: it carries data-view / data-pane for the CSS, and those names are also action names. Without this stop, every click
@@ -2029,6 +2148,13 @@
     if (n === 'data-locopen') { openLoc(); return; }
     if (n === 'data-locnat') { PLACES.setOn(false); return; }
     if (n === 'data-locon') { PLACES.setOn(true); return; }
+    if (n === 'data-locsc') {
+      if (v === 'nat') { PLACES.setOn(false); return; }
+      if (!PLACES.get()) { openLoc(v); return; }
+      PLACES.setScope(v); if (!locOn()) { PLACES.setOn(true); }
+      return;
+    }
+    if (n === 'data-tour') { openTour(0); return; }
     if (n === 'data-svclear') { svQuery = ''; var si = $('svSearch'); if (si) { si.value = ''; si.focus(); } svUpdate(false); var cb = $('svClr'); if (cb) { cb.hidden = true; } return; }
     if (n === 'data-svp') { svPanel = v; svQuery = ''; renderSettings(); return; }
     if (n === 'data-svreset') { resetSection(v); return; }
@@ -2093,7 +2219,7 @@
     $('newsRef').innerHTML = icon('refresh', 13) + ' Refresh';
     $('icS').innerHTML = icon('search', 15);
     $('rX').innerHTML = icon('x');
-    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews(); renderAdv(); initNotice();
+    fillReport(); rTypeChanged(); renderContacts(); applyTheme(); renderBase(); renderNews(); renderAdv(); maybeTour(); initNotice();
     initMap(); refresh(); applyLayers(); renderLegend();
 
     $('q').addEventListener('input', function () { query = this.value.toLowerCase(); refresh(); });

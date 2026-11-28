@@ -253,3 +253,17 @@ Only the DATAsaster repo is covered. The single-file builds (`ph-alert-map.html`
 - Account: the settings search is no longer filled by browser autofill, and has a clear button.
 - Partnership: permanent banner removed from the home page; a once-per-day popup shows when the News section is reached.
 - Area filter: phone layout of the announcement and area bars made compact so the map stays large.
+
+## Phone layout clean-up - 2026-11-28
+### Changed
+- Partnership banner removed from the dashboard (Map, Feed, News, Help tabs and the desktop page). It now lives in Settings > Partnership. The map fills the screen on the Map tab.
+- Area choice moved into Settings > Your area: current area, Change area, and "Show reports from" (This city only, + province, + region, Nationwide). The pin button in the header still opens the area dialog, which now also has the This city only / + province / + region choice.
+- The "Showing ..." banner stays, as one short tappable line that opens the area dialog.
+### Added
+- First-time guide: a 7-step walkthrough (welcome, choose your area, tabs, filters, reading a report, reporting, alerts and settings). Shown once per browser; reopen from Settings > About, the Help tab or the footer.
+### Fixed
+- Category chips (General, Flooding, ...) no longer grow and shrink when switching categories: the header rows are fixed-size in the phone flex layout instead of shrinking with the feed length.
+- `js/lgu-public.js` and `js/lgu-console.js` had leftover merge lines that stopped them from running (partner announcements on the home page, and the partner console).
+- `sw.js` declared the cache name twice, so it was stuck at `datasaster-v30` and phones kept old files. Now `datasaster-v33`.
+### Notes
+- Checked in headless Chromium at 360, 390, 820 and 1366 px wide: no sideways scrolling and no script errors on any page. **NOT TESTED** on a real phone. Map tiles and the PSGC region list could not load in the test environment (no internet there).
